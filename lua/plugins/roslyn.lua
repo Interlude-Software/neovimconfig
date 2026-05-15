@@ -2,22 +2,13 @@ return {
   "seblj/roslyn.nvim",
   ft = "cs",
   cmd = { "Roslyn" },
-  opts = {},
+  opts = {
+    extensions = {
+      razor = { enabled = false },
+    },
+  },
   init = function()
-    local exe
-    if vim.fn.has("win32") == 1 then
-      exe = vim.fn.expand("$LOCALAPPDATA/roslyn-ls/content/LanguageServer/win-x64/Microsoft.CodeAnalysis.LanguageServer.exe")
-    else
-      exe = vim.fn.expand("~/.local/share/roslyn-ls/content/LanguageServer/osx-arm64/Microsoft.CodeAnalysis.LanguageServer")
-    end
-
     vim.lsp.config("roslyn", {
-      cmd = {
-        exe,
-        "--logLevel=Information",
-        "--extensionLogDirectory=" .. vim.fn.stdpath("data"),
-        "--stdio",
-      },
       capabilities = require('cmp_nvim_lsp').default_capabilities(),
       on_attach = function(_, bufnr)
         local opts = { buffer = bufnr }
@@ -28,5 +19,6 @@ return {
         vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, opts)
       end,
     })
+    vim.lsp.enable("roslyn")
   end,
 }
