@@ -31,3 +31,8 @@ vim.opt.smartcase = true       -- ...unless you use a capital letter
 vim.opt.termguicolors = true   -- enable 24-bit colors (themes need this)
 
 require("lazy").setup("plugins")
+
+vim.keymap.set('n', ']w', function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN }) end)
+vim.keymap.set('n', '[w', function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.WARN }) end)
+vim.keymap.set('n', ']e', function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end)
+vim.keymap.set('n', '[e', function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end)
