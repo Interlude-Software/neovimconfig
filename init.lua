@@ -17,7 +17,7 @@ end
 vim.opt.rtp:prepend(lazypath)
 
 vim.opt.number = true
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 vim.opt.cursorline = true      -- highlight the current line
 vim.opt.signcolumn = 'yes'     -- always show sign column (prevents text shifting when gitsigns/LSP add signs)
 vim.opt.scrolloff = 8          -- keep 8 lines visible above/below cursor

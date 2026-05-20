@@ -3,6 +3,7 @@ return {
   ft = "cs",
   cmd = { "Roslyn" },
   opts = {
+    broad_search = true,
     extensions = {
       razor = { enabled = false },
     },

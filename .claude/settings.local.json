@@ -2,7 +2,18 @@
   "permissions": {
     "allow": [
       "Bash(nvim:*)",
-      "Bash(\"$LOCALAPPDATA/nvim-data/mason/bin/OmniSharp.cmd\" --help)"
+      "Bash(\"$LOCALAPPDATA/nvim-data/mason/bin/OmniSharp.cmd\" --help)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if 'roslyn' in k.lower\\(\\)}, indent=2\\)\\)\")",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(brew list *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('contributes',{}\\).get\\('debuggers',[]\\), indent=2\\)\\)\")",
+      "Bash(dotnet --version)",
+      "Bash(dotnet --list-runtimes)",
+      "Bash(dns-sd -L \"Unity Editor :35492\" _unity-debug._tcp local)",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Bash(dns-sd -B _unity-debug._tcp local)",
+      "Bash(read -t 3)"
     ]
   }
 }
