@@ -4,9 +4,6 @@ return {
   cmd = { "Roslyn" },
   opts = {
     broad_search = true,
-    extensions = {
-      razor = { enabled = false },
-    },
   },
   init = function()
     vim.lsp.config("roslyn", {
