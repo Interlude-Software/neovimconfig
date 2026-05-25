@@ -12,15 +12,14 @@ return {
         autocomplete = { require("cmp.types").cmp.TriggerEvent.TextChanged },
       },
       mapping = cmp.mapping.preset.insert({
-        ["<C-Space>"] = cmp.mapping.complete(),  -- Trigger completion
-        ["<C-n>"] = cmp.mapping.complete(),      -- Alternative trigger (Ctrl+n)
-        ["<C-e>"] = cmp.mapping.abort(),         -- Close menu
-        ["<CR>"] = cmp.mapping.confirm({ select = true }), -- Accept selected
-        ["<Tab>"] = cmp.mapping.select_next_item(),
-        ["<S-Tab>"] = cmp.mapping.select_prev_item(),
+        ["<C-Space>"] = cmp.mapping.complete(),
+        ["<C-n>"] = cmp.mapping.complete(),
+        ["<C-e>"] = cmp.mapping.abort(),
+        ["<CR>"] = cmp.mapping.confirm({ select = true }),
+        ["<C-j>"] = cmp.mapping.select_next_item(),
+        ["<C-k>"] = cmp.mapping.select_prev_item(),
       }),
       sources = cmp.config.sources({
-        { name = "copilot", group_index = 1 },
         { name = "nvim_lsp", group_index = 1 },
         { name = "buffer", group_index = 2 },
       }),

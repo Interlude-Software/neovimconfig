@@ -16,6 +16,8 @@ return {
                   "obj",         -- C#/.NET
                   "bin",
                   "Logs",
+                  "UserSettings",
+                  "CodeCoverage",
               },
           },
           pickers = {
@@ -28,6 +30,8 @@ return {
                       "--exclude", "obj",
                       "--exclude", "bin",
                       "--exclude", ".git",
+                      "--exclude", "UserSettings",
+                      "--exclude", "CodeCoverage",
                   },
               },
               live_grep = {
@@ -40,6 +44,8 @@ return {
                           "--glob", "!obj/",
                           "--glob", "!bin/",
                           "--glob", "!.git/",
+                          "--glob", "!UserSettings/",
+                          "--glob", "!CodeCoverage/",
                       }
                   end,
               },
