@@ -26,6 +26,7 @@ vim.opt.tabstop = 4            -- tab width
 vim.opt.shiftwidth = 4         -- indent width
 vim.opt.smartindent = true     -- auto-indent new lines
 vim.opt.wrap = false           -- don't wrap long lines
+vim.opt.colorcolumn = "120"    -- show print width guide
 vim.opt.ignorecase = true      -- case-insensitive search...
 vim.opt.smartcase = true       -- ...unless you use a capital letter
 vim.opt.termguicolors = true   -- enable 24-bit colors (themes need this)
