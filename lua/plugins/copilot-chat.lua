@@ -4,7 +4,7 @@ return {
     "zbirenbaum/copilot.lua",
     "nvim-lua/plenary.nvim",
   },
-  build = "make tiktoken",
+  build = vim.fn.has("win32") == 1 and nil or "make tiktoken",
   opts = {
     window = {
       layout = "vertical",
