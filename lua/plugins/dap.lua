@@ -15,6 +15,8 @@ return {
     dap.listeners.after.event_initialized["dapui_config"] = dapui.open
     dap.listeners.before.event_terminated["dapui_config"] = dapui.close
     dap.listeners.before.event_exited["dapui_config"] = dapui.close
+    dap.listeners.after.event_terminated["nvim_dap_virtual_text"] = function() require("nvim-dap-virtual-text").refresh() end
+    dap.listeners.after.event_exited["nvim_dap_virtual_text"] = function() require("nvim-dap-virtual-text").refresh() end
 
     local adapter_dll = vim.fn.glob(
       vim.fn.expand("~/.vscode/extensions/visualstudiotoolsforunity.vstuc-*/bin/UnityDebugAdapter.dll")

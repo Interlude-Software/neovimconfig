@@ -13,7 +13,13 @@
       "Bash(kill %1)",
       "Bash(wait)",
       "Bash(dns-sd -B _unity-debug._tcp local)",
-      "Bash(read -t 3)"
+      "Bash(read -t 3)",
+      "Bash(lazygit --config-dir)",
+      "Bash(lazygit -h)",
+      "Read(//Users/davidlo/.config/**)",
+      "Read(//Users/davidlo/.config/lazygit/**)",
+      "Bash(lazygit *)",
+      "Read(//Users/davidlo/Library/Application Support/lazygit/**)"
     ]
   }
 }
