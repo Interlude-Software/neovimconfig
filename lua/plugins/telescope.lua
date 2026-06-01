@@ -3,6 +3,18 @@ return {
     tag = "0.1.8",
     dependencies = { "nvim-lua/plenary.nvim" },
     config = function()
+      local actions = require("telescope.actions")
+      local action_state = require("telescope.actions.state")
+
+      local function tab_drop(prompt_bufnr)
+        local entry = action_state.get_selected_entry()
+        actions.close(prompt_bufnr)
+        local path = entry.path or entry.filename
+        if path then
+          vim.cmd("tab drop " .. vim.fn.fnameescape(path))
+        end
+      end
+
       require("telescope").setup({
           defaults = {
               preview = { treesitter = false },
@@ -11,13 +23,17 @@ return {
                   "%.git",
                   "build",
                   "dist",
-                  "Library",     -- Unity
-                  "Temp",        -- Unity
-                  "obj",         -- C#/.NET
+                  "Library",
+                  "Temp",
+                  "obj",
                   "bin",
                   "Logs",
                   "UserSettings",
                   "CodeCoverage",
+              },
+              mappings = {
+                  i = { ["<CR>"] = tab_drop },
+                  n = { ["<CR>"] = tab_drop },
               },
           },
           pickers = {
@@ -53,7 +69,7 @@ return {
       })
 
       local builtin = require("telescope.builtin")
-      vim.keymap.set("n", "<C-p>", builtin.find_files, {desc = "Find files" })
+      vim.keymap.set("n", "<C-p>", builtin.find_files, { desc = "Find files" })
       vim.keymap.set("n", "<leader>ff", builtin.find_files, { desc = "Find files" })
       vim.keymap.set("n", "<leader>fg", builtin.live_grep,  { desc = "Live grep" })
       vim.keymap.set("n", "<leader>fb", builtin.buffers,    { desc = "Buffers" })
