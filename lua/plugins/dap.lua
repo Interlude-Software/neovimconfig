@@ -12,11 +12,23 @@ return {
     dapui.setup()
     require("nvim-dap-virtual-text").setup()
 
+    local function clear_virtual_text()
+      vim.schedule(function()
+        local ns = vim.api.nvim_get_namespaces()["nvim-dap-virtual-text"]
+        if ns then
+          for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+            if vim.api.nvim_buf_is_loaded(buf) then
+              vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+            end
+          end
+        end
+      end)
+    end
+
     dap.listeners.after.event_initialized["dapui_config"] = dapui.open
-    dap.listeners.before.event_terminated["dapui_config"] = dapui.close
-    dap.listeners.before.event_exited["dapui_config"] = dapui.close
-    dap.listeners.after.event_terminated["nvim_dap_virtual_text"] = function() require("nvim-dap-virtual-text").refresh() end
-    dap.listeners.after.event_exited["nvim_dap_virtual_text"] = function() require("nvim-dap-virtual-text").refresh() end
+    dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close(); clear_virtual_text() end
+    dap.listeners.before.event_exited["dapui_config"] = function() dapui.close(); clear_virtual_text() end
+    dap.listeners.after.disconnect["dapui_config"] = function() dapui.close(); clear_virtual_text() end
 
     local adapter_dll = vim.fn.glob(
       vim.fn.expand("~/.vscode/extensions/visualstudiotoolsforunity.vstuc-*/bin/UnityDebugAdapter.dll")
@@ -219,6 +231,9 @@ return {
     end, { desc = "Debug: continue / start" })
     vim.keymap.set("n", "<leader>dh", function() dapui.eval() end, { desc = "Debug: hover eval" })
     vim.keymap.set("v", "<leader>dh", function() dapui.eval() end, { desc = "Debug: eval selection" })
-    vim.keymap.set("n", "<leader>du", dapui.toggle,          { desc = "Debug: toggle UI" })
+    vim.keymap.set("n", "<leader>du", function()
+      dapui.toggle()
+      if not dap.session() then clear_virtual_text() end
+    end, { desc = "Debug: toggle UI" })
   end,
 }

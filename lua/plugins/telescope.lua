@@ -3,27 +3,6 @@ return {
     tag = "0.1.8",
     dependencies = { "nvim-lua/plenary.nvim" },
     config = function()
-      local actions = require("telescope.actions")
-      local action_state = require("telescope.actions.state")
-
-      local function tab_drop(prompt_bufnr)
-        local entry = action_state.get_selected_entry()
-        actions.close(prompt_bufnr)
-        local path = entry.path or entry.filename
-        if not path then return end
-        for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
-          for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
-            local buf = vim.api.nvim_win_get_buf(win)
-            if vim.api.nvim_buf_get_name(buf) == path then
-              vim.api.nvim_set_current_tabpage(tab)
-              vim.api.nvim_set_current_win(win)
-              return
-            end
-          end
-        end
-        vim.cmd("tabnew " .. vim.fn.fnameescape(path))
-      end
-
       require("telescope").setup({
           defaults = {
               preview = { treesitter = false },
@@ -39,10 +18,6 @@ return {
                   "Logs",
                   "UserSettings",
                   "CodeCoverage",
-              },
-              mappings = {
-                  i = { ["<CR>"] = tab_drop },
-                  n = { ["<CR>"] = tab_drop },
               },
           },
           pickers = {
