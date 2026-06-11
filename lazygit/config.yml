@@ -1,4 +1,7 @@
 os:
-  editPreset: 'nvim-remote'
+  edit: 'nvim --server "$NVIM" --remote-tab "{{filename}}"'
+  editAtLine: 'nvim --server "$NVIM" --remote-tab "{{filename}}"'
+  editAtLineAndWait: 'nvim --server "$NVIM" --remote-tab-wait "{{filename}}"'
+  openDirInEditor: 'nvim --server "$NVIM" --remote-tab "{{dir}}"'
 git:
   autoFetch: false

@@ -1,6 +1,21 @@
 -- Set the leader key BEFORE lazy loads (needed for keymaps below)
 vim.g.mapleader = " "
 
+-- Listen on a fixed socket so external tools (Unity) can open files here.
+-- Only the first nvim binds it; later instances skip it silently. If a
+-- previous nvim crashed and left a stale socket, reclaim it.
+local server_sock = vim.fn.expand("~/.cache/nvim/server.pipe")
+if not pcall(vim.fn.serverstart, server_sock) then
+  -- "address already in use" — check whether a live nvim actually owns it.
+  local ok, chan = pcall(vim.fn.sockconnect, "pipe", server_sock, { rpc = true })
+  if ok and chan ~= 0 then
+    vim.fn.chanclose(chan) -- a live server is there; leave it alone
+  else
+    vim.fn.delete(server_sock) -- stale socket from a crashed nvim; rebind
+    pcall(vim.fn.serverstart, server_sock)
+  end
+end
+
 -- Ensure Git's diff is available on Windows
 vim.env.PATH = vim.env.PATH .. ";C:\\Program Files\\Git\\usr\\bin"
 
