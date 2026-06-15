@@ -9,52 +9,39 @@ Uses [lazy.nvim](https://github.com/folke/lazy.nvim). Plugins install on first l
 | Neovim 0.10+ | |
 | Git | lazy.nvim bootstrap |
 | [fd](https://github.com/sharkdp/fd) | Telescope `find_files` |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | Telescope `live_grep` |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) | Telescope `live_grep` — must be a real `rg` binary on `PATH` (a shell alias/function won't do, Telescope spawns `rg` directly) |
 | [lazygit](https://github.com/jesseduffield/lazygit) | `<leader>gg` |
+| [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter) | nvim-treesitter compiles parsers with it (needs a C compiler too) |
 | [.NET SDK 8+](https://dotnet.microsoft.com/download) | Roslyn LSP |
-| [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter) | nvim-treesitter compiles parsers from source |
-| C compiler (`gcc`/`clang`/MSVC) | Used by the tree-sitter CLI to build parsers |
-| [Node.js 22+](https://nodejs.org) | Copilot language server (older Node is rejected at startup) |
+
+Optional (format-on-save via conform): [stylua](https://github.com/JohnnyMorganz/StyLua) (Lua), [csharpier](https://csharpier.com/) (C#, `dotnet tool install -g csharpier`).
 
 ## Install
 
+**Linux (x86_64):** run the bundled script — installs everything into `~/.local/bin` (no sudo), symlinks the lazygit config, and triggers the Mason tools:
+```sh
+./scripts/install-linux.sh
+```
+Make sure `~/.local/bin` (and `~/.dotnet/tools` for csharpier) are on your `PATH`. Distro packages also work, but note Debian/Ubuntu/Mint ship `fd` as `fdfind` (Telescope needs it named `fd`) and may not package `lazygit`.
+
 **macOS:**
 ```sh
-brew install neovim fd ripgrep lazygit dotnet tree-sitter node
+brew install neovim fd ripgrep lazygit dotnet
 ```
 
 **Windows:**
 ```powershell
-winget install Neovim.Neovim sharkdp.fd BurntSushi.ripgrep.MSVC JesseDuffield.lazygit Microsoft.DotNet.SDK.8 Git.Git OpenJS.NodeJS.LTS
-npm install -g tree-sitter-cli
+winget install Neovim.Neovim sharkdp.fd BurntSushi.ripgrep.MSVC JesseDuffield.lazygit Microsoft.DotNet.SDK.8 Git.Git
 ```
-
-**Linux** (no root needed for the tree-sitter CLI):
-```sh
-# fd, ripgrep, lazygit, dotnet, gcc via your distro's package manager, then:
-curl -fL https://github.com/tree-sitter/tree-sitter/releases/latest/download/tree-sitter-linux-x64.gz \
-  | gunzip > ~/.local/bin/tree-sitter
-chmod +x ~/.local/bin/tree-sitter
-
-# Node 22+ (if the distro package is older). Installs into ~/.local, no root needed,
-# and shadows the system node as long as ~/.local/bin is first on PATH:
-V=v24.16.0
-curl -fL https://nodejs.org/dist/$V/node-$V-linux-x64.tar.xz | tar -xJ -C /tmp
-cp -r /tmp/node-$V-linux-x64/bin/*    ~/.local/bin/
-cp -r /tmp/node-$V-linux-x64/lib/*    ~/.local/lib/
-cp -r /tmp/node-$V-linux-x64/include/* ~/.local/include/ 2>/dev/null || true
-```
-
-The tree-sitter CLI is also available cross-platform via `npm install -g tree-sitter-cli`
-or `cargo install tree-sitter-cli`. Without it on `PATH`, nvim-treesitter fails to compile
-parsers with `Error during "tree-sitter build": ... ENOENT ... 'tree-sitter'`.
 
 Open a new terminal so PATH refreshes.
 
 ## First Launch
 
 1. `nvim` (wait for lazy.nvim to finish).
-2. `:MasonInstall roslyn`
+2. `:MasonInstall roslyn netcoredbg`
+   - `roslyn` — C# LSP
+   - `netcoredbg` — .NET debugger for the `coreclr` DAP adapter (`<F5>` → Launch / Attach to .NET Process)
 3. Restart.
 
 ## Lazygit Config

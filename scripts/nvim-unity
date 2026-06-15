@@ -1,0 +1,20 @@
+#!/bin/bash
+# Forward a file (and optional line) from Unity into the already-running nvim
+# that listens on the fixed socket (see init.lua: serverstart(server.pipe)).
+# Falls back to launching a fresh nvim if no server is running.
+FILE="$1"
+LINE="${2:-1}"
+SOCKET="$HOME/.cache/nvim/server.pipe"
+NVIM="/opt/homebrew/bin/nvim"
+
+# Unity sometimes passes line as 0 or non-numeric; normalise.
+[[ "$LINE" =~ ^[1-9][0-9]*$ ]] || LINE="1"
+
+if [ -S "$SOCKET" ]; then
+  # Open the file in a new tab (or jump to its existing tab via :tab drop),
+  # then jump to the line.
+  "$NVIM" --server "$SOCKET" --remote-tab-silent "$FILE"
+  "$NVIM" --server "$SOCKET" --remote-send "<C-\\><C-N>:${LINE}<CR>zz"
+else
+  "$NVIM" -p "+${LINE}" "$FILE"
+fi

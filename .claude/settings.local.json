@@ -19,7 +19,23 @@
       "Read(//Users/davidlo/.config/**)",
       "Read(//Users/davidlo/.config/lazygit/**)",
       "Bash(lazygit *)",
-      "Read(//Users/davidlo/Library/Application Support/lazygit/**)"
+      "Read(//Users/davidlo/Library/Application Support/lazygit/**)",
+      "Bash(chmod +x *)",
+      "Bash(~/.local/bin/nvim-unity \"/Users/davidlo/.config/nvim/init.lua\" 5)",
+      "Read(//Users/davidlo/.local/bin/**)",
+      "Bash(defaults read *)",
+      "Read(//Applications/NvimUnity.app/**)",
+      "Read(//opt/homebrew/Cellar/neovim/0.12.2/bin/**)",
+      "Bash(cp /Applications/NvimUnity.app/Contents/MacOS/nvimunity /Applications/NvimUnity.app/Contents/MacOS/nvimunity.bak)",
+      "Bash(cat)",
+      "Bash(/Users/davidlo/.local/bin/nvim-unity /Users/davidlo/.config/nvim/init.lua 5)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(/opt/homebrew/bin/nvim --server ~/.cache/nvim/server.pipe --remote-expr 'expand\\(\"%:p\"\\) . \" : line \" . line\\(\".\"\\)')",
+      "Bash(/opt/homebrew/bin/nvim *)",
+      "Bash(rm -f /tmp/test_sock.lua)",
+      "Bash(git commit -m ' *)",
+      "Bash(/Users/davidlo/.local/bin/nvim-unity /Users/davidlo/.config/nvim/scripts/README.md 12)",
+      "Bash(git add *)"
     ]
   }
 }
