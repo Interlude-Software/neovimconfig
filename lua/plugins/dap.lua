@@ -196,7 +196,26 @@ return {
         type      = "coreclr",
         request   = "attach",
         name      = "Attach to .NET Process",
-        processId = require("dap.utils").pick_process,
+        -- Only list .NET processes so the picker isn't every PID on the system.
+        -- NOTE: `dotnet run` is just the launcher — it spawns your app as a child
+        -- apphost from `bin/Debug|Release/...` (named after the project, e.g.
+        -- `BuildServer`), and that child is the one you actually want to attach to.
+        -- So match the dotnet host *and* build-output apphosts, and label with the
+        -- full command line so the real app is distinguishable from the launcher.
+        processId = function()
+          return require("dap.utils").pick_process({
+            filter = function(proc)
+              local n = proc.name:lower()
+              return n:find("dotnet") ~= nil
+                or n:find("%.dll") ~= nil
+                or n:find("/bin/debug/") ~= nil
+                or n:find("/bin/release/") ~= nil
+            end,
+            label = function(proc)
+              return string.format("%-7d %s", proc.pid, proc.name)
+            end,
+          })
+        end,
       })
 
       return configs

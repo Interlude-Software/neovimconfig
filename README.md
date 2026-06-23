@@ -9,11 +9,20 @@ Uses [lazy.nvim](https://github.com/folke/lazy.nvim). Plugins install on first l
 | Neovim 0.10+ | |
 | Git | lazy.nvim bootstrap |
 | [fd](https://github.com/sharkdp/fd) | Telescope `find_files` |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | Telescope `live_grep` |
+| [ripgrep](https://github.com/BurntSushi/ripgrep) | Telescope `live_grep` — must be a real `rg` binary on `PATH` (a shell alias/function won't do, Telescope spawns `rg` directly) |
 | [lazygit](https://github.com/jesseduffield/lazygit) | `<leader>gg` |
+| [tree-sitter CLI](https://github.com/tree-sitter/tree-sitter) | nvim-treesitter compiles parsers with it (needs a C compiler too) |
 | [.NET SDK 8+](https://dotnet.microsoft.com/download) | Roslyn LSP |
 
+Optional (format-on-save via conform): [stylua](https://github.com/JohnnyMorganz/StyLua) (Lua), [csharpier](https://csharpier.com/) (C#, `dotnet tool install -g csharpier`).
+
 ## Install
+
+**Linux (x86_64):** run the bundled script — installs everything into `~/.local/bin` (no sudo), symlinks the lazygit config, and triggers the Mason tools:
+```sh
+./scripts/install-linux.sh
+```
+Make sure `~/.local/bin` (and `~/.dotnet/tools` for csharpier) are on your `PATH`. Distro packages also work, but note Debian/Ubuntu/Mint ship `fd` as `fdfind` (Telescope needs it named `fd`) and may not package `lazygit`.
 
 **macOS:**
 ```sh
@@ -30,7 +39,9 @@ Open a new terminal so PATH refreshes.
 ## First Launch
 
 1. `nvim` (wait for lazy.nvim to finish).
-2. `:MasonInstall roslyn`
+2. `:MasonInstall roslyn netcoredbg`
+   - `roslyn` — C# LSP
+   - `netcoredbg` — .NET debugger for the `coreclr` DAP adapter (`<F5>` → Launch / Attach to .NET Process)
 3. Restart.
 
 ## Lazygit Config

@@ -1,0 +1,39 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A personal Neovim configuration centered on **Unity / C# development**. There is no build or test suite — "running" it means launching `nvim` and letting [lazy.nvim](https://github.com/folke/lazy.nvim) sync plugins. Changes are validated by editing config, restarting Neovim, and observing behavior.
+
+## Architecture
+
+- `init.lua` — sets `<Space>` as leader **before** anything else (keymaps depend on it), bootstraps lazy.nvim, applies core `vim.opt` settings, then `require("lazy").setup("plugins")`.
+- `lua/plugins/*.lua` — lazy.nvim auto-imports every file in this directory. **Each file returns a single plugin spec table** (one plugin per file). Adding a plugin = adding a new file here; no central registry to update.
+- `lazy-lock.json` — pinned plugin commits (committed; this is the lockfile).
+- `lazygit/config.yml` — source of truth for the lazygit config, symlinked into place per the README (not auto-loaded by Neovim).
+
+### Conventions for plugin specs
+
+- LSP keymaps and capabilities are attached in each LSP plugin's `on_attach` (see `roslyn.lua`), not globally.
+- Lazy-loading is deliberate: specs use `ft = "cs"`, `event = ...`, `cmd = ...`, or `keys = ...`. Preserve these triggers when editing — loading eagerly will slow startup and can break load order.
+- Unity/.NET junk directories (`Library`, `Temp`, `Logs`, `obj`, `bin`, `UserSettings`, `CodeCoverage`) are filtered in **three independent places** that must be kept in sync: `telescope.lua` (`file_ignore_patterns`, `find_files` fd args, and `live_grep` ripgrep globs) and `neo-tree.lua` (`hide_by_name`).
+
+### C# / Unity stack (the core of this config)
+
+- **LSP**: `roslyn.nvim` (`roslyn.lua`), not lspconfig's omnisharp. Installed via Mason — `mason.lua` adds the `Crashdummyy/mason-registry` registry specifically to make the `roslyn` package available. First-time setup requires `:MasonInstall roslyn` then a restart.
+- **Debugging** (`dap.lua`, the most involved file): uses the `UnityDebugAdapter.dll` from the VS Code "Visual Studio Tools for Unity" extension (`visualstudiotoolsforunity.vstuc`), auto-discovered via glob under `~/.vscode/extensions/`. Also configures `coreclr` (netcoredbg, via Mason) for plain .NET. The Unity attach flow discovers running Editors by scanning `lsof` for listening ports on `127.0.0.1:56xxx`, maps PIDs to project paths via `ps`/`-projectPath`, caches the last project to `stdpath("cache")/unity_debug_project.txt`, and dynamically builds the dap config list (a "Re-attach" entry appears only when a cached project exists). The Unity port-discovery logic is Unix-specific (`lsof`/`ps`/`pgrep`).
+- **Formatting**: `conform.nvim` formats on save — `stylua` for Lua, `csharpier` for C#, LSP fallback otherwise.
+- **Completion**: `nvim-cmp` (nvim_lsp + buffer sources). Copilot inline suggestions are separate (`copilot.lua`, `<C-l>` to accept).
+
+### treesitter note
+
+`treesitter.lua` targets the new nvim-treesitter v1.x API (no `configs.setup()`; highlighting is automatic). It contains a **compatibility shim** re-adding `parsers.ft_to_lang`, which telescope still calls but v1.x removed. Don't delete this shim without confirming telescope no longer needs it.
+
+## External dependencies
+
+Plugins install on first launch; external CLIs must be on `PATH`. See the README for the full table and per-OS install commands. Key ones: `fd` + `ripgrep` (telescope), `lazygit`, `.NET SDK 8+` (roslyn) / `10+` (Unity debug adapter), `tree-sitter` CLI + a C compiler (parser builds), `Node.js 22+` (Copilot — older Node is rejected at startup), `stylua` + `csharpier` (formatting).
+
+## Keymaps
+
+Leader is `<Space>`. Full table is in the README. The which-key groups (`<leader>d` debug, `<leader>x` trouble, `<leader>r` rename, `<leader>c` code action) are declared in `which-key.lua`.
