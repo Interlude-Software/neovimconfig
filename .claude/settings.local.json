@@ -35,7 +35,10 @@
       "Bash(rm -f /tmp/test_sock.lua)",
       "Bash(git commit -m ' *)",
       "Bash(/Users/davidlo/.local/bin/nvim-unity /Users/davidlo/.config/nvim/scripts/README.md 12)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)"
     ]
   }
 }
