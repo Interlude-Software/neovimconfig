@@ -4,9 +4,10 @@ return {
   dir = vim.fn.stdpath("config") .. "/gh-pipeline",
   name = "gh-pipeline",
   lazy = true,
-  cmd = "GhPipeline",
+  cmd = { "GhPipeline", "GhPipelineQueue" },
   keys = {
     { "<leader>gp", "<cmd>GhPipeline<cr>", desc = "GitHub Actions (queued/running)" },
+    { "<leader>gq", "<cmd>GhPipelineQueue<cr>", desc = "GitHub CI queue (processing order)" },
   },
   config = function()
     require("gh-pipeline").setup()
