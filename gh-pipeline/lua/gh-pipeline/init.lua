@@ -7,7 +7,7 @@
 local M = {}
 
 local config = {
-  refresh_ms = 8000, -- auto-refresh cadence while the float is open
+  refresh_ms = 30000, -- auto-refresh cadence while the float is open
   limit = 50, -- max open PRs to scan
   author = "@me", -- whose PRs to show: "@me", a username, or false for all
   show_passing = false, -- list every passing check, or collapse them to a summary
@@ -29,7 +29,18 @@ local state = {
   view = "board", -- "board" (PR blockers) or "queue" (CI jobs in processing order)
   spin_timer = nil, -- drives the loading spinner animation
   spin_frame = 1,
+  req = 0, -- monotonic fetch token; see bump_req
 }
+
+-- Bump the request token. Every refresh and view toggle calls this so that
+-- in-flight `gh` callbacks from a superseded fetch (e.g. the old view's data
+-- arriving after a Tab switch) can compare their captured token against
+-- state.req and skip applying -- otherwise queue jobs can be fed to the board
+-- builder (and vice versa), crashing the sort on missing fields.
+local function bump_req()
+  state.req = state.req + 1
+  return state.req
+end
 
 -- Braille spinner frames, advanced on a short timer while a fetch is in flight.
 local SPINNER = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
@@ -517,120 +528,183 @@ local function classify_job(j)
   return kind, label
 end
 
--- Queue view: a full processing-order list of recent CI jobs.
+-- Fetch the set of head branches for the user's open PRs (per config.author),
+-- so the queue view can be scoped to "my own PRs". Calls cb(set) where set is a
+-- table keyed by branch name. cb(nil) means "don't filter" -- either the author
+-- filter is off, or we couldn't determine the PRs (better to show the full
+-- queue than to silently hide everything). An empty set is meaningful: the
+-- author simply has no open PRs, so the queue should be empty.
+local function my_pr_branches(cb)
+  if not config.author then
+    return cb(nil)
+  end
+  gh({
+    "pr",
+    "list",
+    "--state",
+    "open",
+    "--author",
+    config.author,
+    "--limit",
+    tostring(config.limit),
+    "--json",
+    "headRefName",
+  }, {}, function(ok, prs)
+    if not ok or type(prs) ~= "table" then
+      return cb(nil)
+    end
+    local set = {}
+    for _, pr in ipairs(prs) do
+      if pr.headRefName then
+        set[pr.headRefName] = true
+      end
+    end
+    cb(set)
+  end)
+end
+
+-- Queue view: a processing-order list of recent CI jobs, scoped to the user's
+-- own PRs (config.author) by head branch.
 -- Ordering: active jobs first, oldest-first (the next ones to run), then
 -- completed jobs after them, most-recent-first. Cancelled jobs included.
 local function refresh_queue()
   if not is_open() then
     return
   end
+  local req = bump_req()
   set_loading(true)
   state.cwd = repo_dir()
 
   with_repo(function()
-    gh({
-      "run",
-      "list",
-      "--json",
-      "databaseId,status,conclusion,workflowName,name,headBranch,number,displayTitle,createdAt,event",
-      "--limit",
-      "100",
-    }, {}, function(ok, runs, err)
-      if not ok then
-        set_loading(false)
-        if is_open() then
-          apply(nil, nil, err)
-        end
-        return
+    my_pr_branches(function(branchset)
+      if req ~= state.req then
+        return -- a newer refresh/toggle superseded this fetch
       end
+      gh({
+        "run",
+        "list",
+        "--json",
+        "databaseId,status,conclusion,workflowName,name,headBranch,number,displayTitle,createdAt,event",
+        "--limit",
+        "100",
+      }, {}, function(ok, runs, err)
+        if req ~= state.req then
+          return -- a newer refresh/toggle superseded this fetch
+        end
+        if not ok then
+          set_loading(false)
+          if is_open() then
+            apply(nil, nil, err)
+          end
+          return
+        end
 
-      -- Take active runs plus the most recent runs overall (run list is already
-      -- newest-first), capped so the per-run jobs fan-out stays bounded.
-      local selected, seen = {}, {}
-      local function pick(run)
-        if not seen[run.databaseId] then
-          seen[run.databaseId] = true
-          selected[#selected + 1] = run
+        -- Scope to the user's own PRs: keep only runs whose head branch matches
+        -- one of their open PRs. branchset == nil means "no filter".
+        local mine = runs or {}
+        if branchset then
+          mine = {}
+          for _, run in ipairs(runs or {}) do
+            if run.headBranch and branchset[run.headBranch] then
+              mine[#mine + 1] = run
+            end
+          end
         end
-      end
-      for _, run in ipairs(runs or {}) do
-        if ACTIVE_STATUS[run.status] then
+
+        -- Take active runs plus the most recent runs overall (run list is already
+        -- newest-first), capped so the per-run jobs fan-out stays bounded.
+        local selected, seen = {}, {}
+        local function pick(run)
+          if not seen[run.databaseId] then
+            seen[run.databaseId] = true
+            selected[#selected + 1] = run
+          end
+        end
+        for _, run in ipairs(mine) do
+          if ACTIVE_STATUS[run.status] then
+            pick(run)
+          end
+        end
+        for _, run in ipairs(mine) do
+          if #selected >= config.queue_runs then
+            break
+          end
           pick(run)
         end
-      end
-      for _, run in ipairs(runs or {}) do
-        if #selected >= config.queue_runs then
-          break
-        end
-        pick(run)
-      end
 
-      if #selected == 0 then
-        set_loading(false)
-        if is_open() then
-          apply({}, nil, nil)
-        end
-        return
-      end
-
-      -- Fan out a jobs fetch per selected run; collect jobs, then sort.
-      local jobs = {}
-      local pending = #selected
-
-      local function finish()
-        table.sort(jobs, function(a, b)
-          -- Active jobs come before completed ones.
-          if a.active ~= b.active then
-            return a.active
+        if #selected == 0 then
+          if req ~= state.req then
+            return -- a newer refresh/toggle superseded this fetch
           end
-          if a.active then
-            -- Among active: oldest-first = next to be processed.
+          set_loading(false)
+          if is_open() then
+            apply({}, nil, nil)
+          end
+          return
+        end
+
+        -- Fan out a jobs fetch per selected run; collect jobs, then sort.
+        local jobs = {}
+        local pending = #selected
+
+        local function finish()
+          if req ~= state.req then
+            return -- a newer refresh/toggle superseded this fetch
+          end
+          table.sort(jobs, function(a, b)
+            -- Active jobs come before completed ones.
+            if a.active ~= b.active then
+              return a.active
+            end
+            if a.active then
+              -- Among active: oldest-first = next to be processed.
+              if a.created ~= b.created then
+                return (a.created or "") < (b.created or "")
+              end
+              return (a.name or "") < (b.name or "")
+            end
+            -- Among completed: most recent first.
             if a.created ~= b.created then
-              return (a.created or "") < (b.created or "")
+              return (a.created or "") > (b.created or "")
             end
             return (a.name or "") < (b.name or "")
+          end)
+          set_loading(false)
+          if is_open() then
+            apply(jobs, nil, nil)
           end
-          -- Among completed: most recent first.
-          if a.created ~= b.created then
-            return (a.created or "") > (b.created or "")
-          end
-          return (a.name or "") < (b.name or "")
-        end)
-        set_loading(false)
-        if is_open() then
-          apply(jobs, nil, nil)
         end
-      end
 
-      for _, run in ipairs(selected) do
-        gh({
-          "api",
-          string.format("repos/{owner}/{repo}/actions/runs/%d/jobs", run.databaseId),
-        }, {}, function(ok2, data)
-          if ok2 and data and data.jobs then
-            for _, j in ipairs(data.jobs) do
-              local active = ACTIVE_STATUS[j.status] or false
-              local kind, label = classify_job(j)
-              jobs[#jobs + 1] = {
-                name = j.name or run.workflowName or run.name,
-                branch = j.head_branch or run.headBranch,
-                kind = kind,
-                label = label,
-                active = active,
-                run_id = run.databaseId,
-                url = j.html_url or run.url,
-                -- For active jobs created_at (enqueue time) drives order; for
-                -- completed jobs we sort newest-first on the same field.
-                created = j.started_at or j.created_at or run.createdAt,
-              }
+        for _, run in ipairs(selected) do
+          gh({
+            "api",
+            string.format("repos/{owner}/{repo}/actions/runs/%d/jobs", run.databaseId),
+          }, {}, function(ok2, data)
+            if ok2 and data and data.jobs then
+              for _, j in ipairs(data.jobs) do
+                local active = ACTIVE_STATUS[j.status] or false
+                local kind, label = classify_job(j)
+                jobs[#jobs + 1] = {
+                  name = j.name or run.workflowName or run.name,
+                  branch = j.head_branch or run.headBranch,
+                  kind = kind,
+                  label = label,
+                  active = active,
+                  run_id = run.databaseId,
+                  url = j.html_url or run.url,
+                  -- For active jobs created_at (enqueue time) drives order; for
+                  -- completed jobs we sort newest-first on the same field.
+                  created = j.started_at or j.created_at or run.createdAt,
+                }
+              end
             end
-          end
-          pending = pending - 1
-          if pending == 0 then
-            finish()
-          end
-        end)
-      end
+            pending = pending - 1
+            if pending == 0 then
+              finish()
+            end
+          end)
+        end
+      end)
     end)
   end)
 end
@@ -640,6 +714,7 @@ local function refresh_board()
   if not is_open() then
     return
   end
+  local req = bump_req()
   set_loading(true)
   state.cwd = repo_dir()
 
@@ -658,6 +733,9 @@ local function refresh_board()
       vim.list_extend(args, { "--author", config.author })
     end
     gh(args, {}, function(ok, prs, err)
+      if req ~= state.req then
+        return -- a newer refresh/toggle superseded this fetch
+      end
       if not ok then
         set_loading(false)
         if is_open() then
@@ -680,6 +758,9 @@ local function refresh_board()
       local pending = #bases
 
       local function finish()
+        if req ~= state.req then
+          return -- a newer refresh/toggle superseded this fetch
+        end
         set_loading(false)
         if is_open() then
           apply(prs, required, nil)
