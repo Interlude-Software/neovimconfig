@@ -9,6 +9,8 @@ return {
     formatters_by_ft = {
       lua = { "stylua" },
       cs  = { "csharpier" },
+      c   = { "clang-format" },
+      cpp = { "clang-format" },
     },
   },
 }

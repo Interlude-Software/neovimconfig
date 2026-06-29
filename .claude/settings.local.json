@@ -38,7 +38,29 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git fetch *)",
-      "Bash(git merge *)"
+      "Bash(git merge *)",
+      "Bash(cargo --version)",
+      "Read(//Users/davidlo/.local/share/nvim/lazy/gh-actions.nvim/**)",
+      "Bash(make -C ~/.local/share/nvim/lazy/gh-actions.nvim)",
+      "Bash(git ls-remote *)",
+      "Bash(stylua --check gh-pipeline/lua/gh-pipeline/init.lua)",
+      "Bash(stylua gh-pipeline/lua/gh-pipeline/init.lua lua/plugins/gh-pipeline.lua)",
+      "Bash(stylua --check gh-pipeline/lua/gh-pipeline/init.lua lua/plugins/gh-pipeline.lua)",
+      "Bash(gh --version)",
+      "Bash(gh auth *)",
+      "Bash(gh run *)",
+      "Bash(gh pr *)",
+      "Bash(gh api *)",
+      "Bash(git checkout *)",
+      "Bash(rm -rf ~/.local/share/nvim/lazy/pipeline.nvim ~/.local/share/nvim/lazy/gh-actions.nvim)",
+      "Bash(grep -iA1 -- \"--user\\\\|--branch\\\\|--actor\")",
+      "Bash(grep -iA1 -- \"--author\")",
+      "Read(//Users/davidlo/.local/share/nvim/mason/bin/**)",
+      "Bash(~/.local/share/nvim/mason/bin/stylua gh-pipeline/lua/gh-pipeline/init.lua)",
+      "Bash(brew reinstall *)",
+      "Bash(timeout 60 claude -p 'Reply with strict JSON only: {\"ok\":true}' --output-format json)",
+      "Bash(claude -p 'Reply with strict JSON only and nothing else: {\"ok\":true}' --output-format json)",
+      "Bash(luajit -bl lua/plugins/mason.lua)"
     ]
   }
 }

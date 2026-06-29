@@ -46,6 +46,16 @@ return {
       args = { "--interpreter=vscode" },
     }
 
+    -- C / C++ (and other native code) via codelldb, installed through Mason.
+    dap.adapters.codelldb = {
+      type = "server",
+      port = "${port}",
+      executable = {
+        command = vim.fn.expand("~/.local/share/nvim/mason/bin/codelldb"),
+        args = { "--port", "${port}" },
+      },
+    }
+
     -- Unity discovery helpers
 
     local function unity_project_path(pid)
@@ -217,6 +227,35 @@ return {
           })
         end,
       })
+
+      -- Native C / C++ debugging via codelldb.
+      local native = {
+        {
+          type    = "codelldb",
+          request = "launch",
+          name    = "Launch C/C++ executable",
+          program = function()
+            return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/", "file")
+          end,
+          cwd        = "${workspaceFolder}",
+          stopOnEntry = false,
+        },
+        {
+          type    = "codelldb",
+          request = "attach",
+          name    = "Attach to process (C/C++)",
+          pid     = function() return require("dap.utils").pick_process() end,
+          cwd     = "${workspaceFolder}",
+        },
+      }
+
+      -- When editing native code, surface these first; otherwise append.
+      local ft = vim.bo.filetype
+      if ft == "c" or ft == "cpp" then
+        for i = #native, 1, -1 do table.insert(configs, 1, native[i]) end
+      else
+        vim.list_extend(configs, native)
+      end
 
       return configs
     end

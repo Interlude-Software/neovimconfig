@@ -23,8 +23,13 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
 
 - **LSP**: `roslyn.nvim` (`roslyn.lua`), not lspconfig's omnisharp. Installed via Mason — `mason.lua` adds the `Crashdummyy/mason-registry` registry specifically to make the `roslyn` package available. First-time setup requires `:MasonInstall roslyn` then a restart.
 - **Debugging** (`dap.lua`, the most involved file): uses the `UnityDebugAdapter.dll` from the VS Code "Visual Studio Tools for Unity" extension (`visualstudiotoolsforunity.vstuc`), auto-discovered via glob under `~/.vscode/extensions/`. Also configures `coreclr` (netcoredbg, via Mason) for plain .NET. The Unity attach flow discovers running Editors by scanning `lsof` for listening ports on `127.0.0.1:56xxx`, maps PIDs to project paths via `ps`/`-projectPath`, caches the last project to `stdpath("cache")/unity_debug_project.txt`, and dynamically builds the dap config list (a "Re-attach" entry appears only when a cached project exists). The Unity port-discovery logic is Unix-specific (`lsof`/`ps`/`pgrep`).
-- **Formatting**: `conform.nvim` formats on save — `stylua` for Lua, `csharpier` for C#, LSP fallback otherwise.
+- **Formatting**: `conform.nvim` formats on save — `stylua` for Lua, `csharpier` for C#, `clang-format` for C/C++, LSP fallback otherwise.
 - **Completion**: `nvim-cmp` (nvim_lsp + buffer sources). Copilot inline suggestions are separate (`copilot.lua`, `<C-l>` to accept).
+
+### C / C++ stack
+
+- **LSP**: `clangd`, configured in `lspconfig.lua` (which owns `nvim-lspconfig`). Lazy-loaded on `ft = { c, cpp, objc, objcpp, cuda }`; the `on_attach` keymaps mirror `roslyn.lua` exactly. Install via Mason: `:MasonInstall clangd`. clangd reads `compile_commands.json` (or `.clangd`/`compile_flags.txt`) from the project root for include paths.
+- **Debugging**: `codelldb` (Mason) adapter in `dap.lua`. `build_configs()` adds "Launch C/C++ executable" and "Attach to process (C/C++)" entries, surfaced first when the current buffer's filetype is `c`/`cpp` and appended otherwise. Install via Mason: `:MasonInstall codelldb`.
 
 ### treesitter note
 
