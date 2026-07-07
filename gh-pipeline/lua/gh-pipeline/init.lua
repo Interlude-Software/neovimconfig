@@ -1758,10 +1758,21 @@ local function triage_convo_under_cursor()
         end
       end
 
+      -- Include resolved threads too: in a healthy review most conversation
+      -- lives in threads that got addressed and resolved, and dropping them
+      -- left nothing to triage. Label the state so claude can mark settled
+      -- ones `resolve` rather than treating them as open.
       for _, th in ipairs((prd.reviewThreads or {}).nodes or {}) do
-        if th.isResolved == false then
-          local buf = { string.format("=== INLINE THREAD (%s) ===", th.path or "?") }
-          for _, c in ipairs((th.comments or {}).nodes or {}) do
+        local cs = (th.comments or {}).nodes or {}
+        if #cs > 0 then
+          local buf = {
+            string.format(
+              "=== INLINE THREAD (%s)%s ===",
+              th.path or "?",
+              th.isResolved and " [resolved]" or ""
+            ),
+          }
+          for _, c in ipairs(cs) do
             buf[#buf + 1] = "@" .. ((c.author or {}).login or "?") .. ": " .. (c.body or "")
           end
           blocks[#blocks + 1] = table.concat(buf, "\n")
@@ -1782,7 +1793,8 @@ local function triage_convo_under_cursor()
     local prompt = table.concat({
       "You are helping a PR author triage the review conversation. The feedback is",
       'on stdin in sections separated by "=== ... ===": the timeline conversation,',
-      "each REVIEW write-up (with its state), and each unresolved INLINE THREAD.",
+      "each REVIEW write-up (with its state), and each INLINE THREAD (threads",
+      "marked [resolved] were already settled — prefer action=resolve for those).",
       "Reply with STRICT JSON only (no markdown):",
       '{"threads":[{"id":n,"kind":"blocking|suggestion|nit|question|praise|discussion",',
       ' "talking_past":true|false,"deadlocked":true|false,',
