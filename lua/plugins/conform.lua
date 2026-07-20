@@ -7,10 +7,18 @@ return {
       lsp_format = "fallback",
     },
     formatters_by_ft = {
-      lua = { "stylua" },
-      cs  = { "csharpier" },
-      c   = { "clang-format" },
-      cpp = { "clang-format" },
+      lua    = { "stylua" },
+      cs     = { "csharpier" },
+      c      = { "clang-format" },
+      cpp    = { "clang-format" },
+      objc   = { "clang-format" },
+      objcpp = { "clang-format" },
+      cuda   = { "clang-format" },
+    },
+    formatters = {
+      ["clang-format"] = {
+        prepend_args = { "--style=file", "--fallback-style=Microsoft" },
+      },
     },
   },
 }
