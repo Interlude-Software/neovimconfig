@@ -20,6 +20,7 @@ return {
         ["<C-k>"] = cmp.mapping.select_prev_item(),
       }),
       sources = cmp.config.sources({
+        { name = "lazydev", group_index = 0 },
         { name = "nvim_lsp", group_index = 1 },
         { name = "buffer", group_index = 2 },
       }),

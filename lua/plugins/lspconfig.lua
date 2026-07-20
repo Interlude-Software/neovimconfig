@@ -1,6 +1,6 @@
 return {
   "neovim/nvim-lspconfig",
-  ft = { "c", "cpp", "objc", "objcpp", "cuda" },
+  ft = { "c", "cpp", "objc", "objcpp", "cuda", "lua" },
   init = function()
     local function on_attach(_, bufnr)
       local opts = { buffer = bufnr }
@@ -32,5 +32,13 @@ return {
       end,
     })
     vim.lsp.enable("clangd")
+
+    -- lazydev.nvim supplies the `vim` global and lazy.nvim plugin-spec types,
+    -- so no manual settings.Lua.diagnostics/workspace hacks needed here.
+    vim.lsp.config("lua_ls", {
+      capabilities = require('cmp_nvim_lsp').default_capabilities(),
+      on_attach = on_attach,
+    })
+    vim.lsp.enable("lua_ls")
   end,
 }

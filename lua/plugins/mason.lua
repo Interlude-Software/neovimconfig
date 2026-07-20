@@ -11,7 +11,7 @@ return {
 
     -- Auto-install the tools the config depends on. Names resolve across both
     -- registries above (roslyn lives in the Crashdummyy one).
-    local ensure = { "roslyn", "netcoredbg", "clangd", "codelldb", "clang-format" }
+    local ensure = { "roslyn", "netcoredbg", "clangd", "codelldb", "clang-format", "lua-language-server" }
     local registry = require("mason-registry")
 
     local function install_missing()
