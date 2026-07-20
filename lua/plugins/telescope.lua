@@ -3,6 +3,25 @@ return {
     tag = "0.1.8",
     dependencies = { "nvim-lua/plenary.nvim" },
     config = function()
+      -- Per-project excludes: a `.telescopeignore` file in the cwd, one
+      -- glob per line (`#` comments and blank lines skipped). No nvim
+      -- config changes needed to add project-specific excludes — just
+      -- drop the file in the project root.
+      local function extra_excludes()
+          local path = vim.fn.getcwd() .. "/.telescopeignore"
+          if vim.fn.filereadable(path) == 0 then
+              return {}
+          end
+          local patterns = {}
+          for _, line in ipairs(vim.fn.readfile(path)) do
+              local trimmed = line:match("^%s*(.-)%s*$")
+              if trimmed ~= "" and not trimmed:match("^#") then
+                  table.insert(patterns, trimmed)
+              end
+          end
+          return patterns
+      end
+
       require("telescope").setup({
           defaults = {
               preview = { treesitter = false },
@@ -22,21 +41,27 @@ return {
           },
           pickers = {
               find_files = {
-                  find_command = {
-                      "fd", "--type", "f", "--hidden", "--no-ignore",
-                      "--exclude", "Library",
-                      "--exclude", "Temp",
-                      "--exclude", "Logs",
-                      "--exclude", "obj",
-                      "--exclude", "bin",
-                      "--exclude", ".git",
-                      "--exclude", "UserSettings",
-                      "--exclude", "CodeCoverage",
-                  },
+                  find_command = function()
+                      local cmd = {
+                          "fd", "--type", "f", "--hidden", "--no-ignore",
+                          "--exclude", "Library",
+                          "--exclude", "Temp",
+                          "--exclude", "Logs",
+                          "--exclude", "obj",
+                          "--exclude", "bin",
+                          "--exclude", ".git",
+                          "--exclude", "UserSettings",
+                          "--exclude", "CodeCoverage",
+                      }
+                      for _, pattern in ipairs(extra_excludes()) do
+                          vim.list_extend(cmd, { "--exclude", pattern })
+                      end
+                      return cmd
+                  end,
               },
               live_grep = {
                   additional_args = function()
-                      return {
+                      local args = {
                           "--no-ignore",
                           "--glob", "!Library/",
                           "--glob", "!Temp/",
@@ -47,6 +72,10 @@ return {
                           "--glob", "!UserSettings/",
                           "--glob", "!CodeCoverage/",
                       }
+                      for _, pattern in ipairs(extra_excludes()) do
+                          vim.list_extend(args, { "--glob", "!" .. pattern })
+                      end
+                      return args
                   end,
               },
           },
