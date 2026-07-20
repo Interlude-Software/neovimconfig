@@ -971,8 +971,8 @@ local function build_queue(jobs, err)
   -- Layout: "  NN  <icon> job  branch  status"
   -- Reserve room for index/icon/status, split the rest between job and branch.
   local rest = math.max(30, win_w - 24)
-  local job_max = math.max(16, math.floor(rest * 0.6))
-  local branch_max = math.max(10, rest - job_max)
+  local job_max = math.min(99, math.max(16, math.floor(rest * 0.6)))
+  local branch_max = math.min(99, math.max(10, rest - job_max))
 
   local function trunc(s, n)
     s = s or "?"
