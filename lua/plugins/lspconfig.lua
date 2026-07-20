@@ -14,7 +14,22 @@ return {
 
     vim.lsp.config("clangd", {
       capabilities = require('cmp_nvim_lsp').default_capabilities(),
-      on_attach = on_attach,
+      on_attach = function(client, bufnr)
+        on_attach(client, bufnr)
+        vim.keymap.set('n', 'gh', function()
+          vim.lsp.buf_request(bufnr, 'textDocument/switchSourceHeader', vim.lsp.util.make_text_document_params(), function(err, result)
+            if err then
+              vim.notify('switchSourceHeader failed: ' .. err.message, vim.log.levels.ERROR)
+              return
+            end
+            if not result then
+              vim.notify('No corresponding header/source file found', vim.log.levels.WARN)
+              return
+            end
+            vim.cmd.edit(vim.uri_to_fname(result))
+          end)
+        end, { buffer = bufnr })
+      end,
     })
     vim.lsp.enable("clangd")
   end,
