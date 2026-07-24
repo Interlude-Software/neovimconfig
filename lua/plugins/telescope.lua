@@ -86,7 +86,13 @@ return {
       })
 
       local builtin = require("telescope.builtin")
-      vim.keymap.set("n", "<C-p>", builtin.find_files, { desc = "Find files" })
+      vim.keymap.set("n", "<C-p>", function()
+        builtin.find_files({
+            previewer = false,
+            layout_strategy = "bottom_pane",
+            layout_config = { height = 0.4, prompt_position = "bottom" },
+        })
+      end, { desc = "Find files (bottom, no preview)" })
       vim.keymap.set("n", "<leader>ff", builtin.find_files, { desc = "Find files" })
       vim.keymap.set("n", "<leader>fg", builtin.live_grep,  { desc = "Live grep" })
       vim.keymap.set("n", "<leader>fb", builtin.buffers,    { desc = "Buffers" })
