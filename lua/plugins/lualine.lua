@@ -5,7 +5,7 @@ return {
   config = function()
     require('lualine').setup({
       options = {
-        theme = 'tokyonight',
+        theme = 'catppuccin',
         icons_enabled = true,
         globalstatus = true,        -- single statusline across all splits
         section_separators = { left = '', right = '' },
