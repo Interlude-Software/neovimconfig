@@ -9,7 +9,11 @@ return {
     local dap = require("dap")
     local dapui = require("dapui")
 
-    dapui.setup()
+    dapui.setup({
+      element_mappings = {
+        stacks = { open = { "<CR>", "o" } },
+      },
+    })
     require("nvim-dap-virtual-text").setup()
 
     local function clear_virtual_text()
