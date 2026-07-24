@@ -47,6 +47,7 @@ vim.opt.smartcase = true       -- ...unless you use a capital letter
 vim.opt.termguicolors = true   -- enable 24-bit colors (themes need this)
 vim.opt.splitright = true      -- vertical splits open to the right
 vim.opt.splitbelow = true      -- horizontal splits open below
+vim.opt.shortmess:append("A")  -- skip the swap-file ATTENTION prompt (crashes LSP jump handlers otherwise)
 
 require("lazy").setup("plugins")
 
