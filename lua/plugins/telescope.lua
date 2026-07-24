@@ -25,6 +25,10 @@ return {
       require("telescope").setup({
           defaults = {
               preview = { treesitter = false },
+              vimgrep_arguments = {
+                  "rg", "--color=never", "--no-heading", "--with-filename",
+                  "--line-number", "--column",
+              },
               file_ignore_patterns = {
                   "^node_modules/", "/node_modules/",
                   "^%.git/", "/%.git/",
