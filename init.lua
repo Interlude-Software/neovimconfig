@@ -57,6 +57,7 @@ require("lazy").setup("plugins")
 -- Async builds into the quickfix list (<leader>b...); not a plugin spec, so it
 -- lives outside lua/plugins/ and is wired up by hand.
 require("user.build").setup()
+require("user.run").setup()
 
 vim.keymap.set("n", "]w", function()
   vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN })

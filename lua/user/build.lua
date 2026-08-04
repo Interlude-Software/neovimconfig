@@ -355,6 +355,29 @@ function M.choose_preset()
   end)
 end
 
+--- The CMake source root for the current buffer, or nil.
+function M.project_root()
+  local cmakelists = find_up("CMakeLists.txt")
+  return cmakelists and vim.fs.dirname(cmakelists)
+end
+
+--- Where this project's build artifacts land, honouring the selected preset.
+--- Exposed for user/run.lua, which locates built executables under it — the
+--- preset resolution must not be duplicated, or the two would disagree about
+--- which directory (build/ vs build/<preset>/) is current.
+function M.binary_dir()
+  local root = M.project_root()
+  if not root then
+    return nil
+  end
+  local presets = load_presets(root)
+  if presets then
+    return presets.binary[pick_preset(root, presets)], root
+  end
+  local dir = cmake_build_dir(root)
+  return dir, root
+end
+
 --- Resolve the steps needed to build whatever project the current buffer is in.
 --- Returns a step list and a short label, or nil plus a reason.
 ---
@@ -675,7 +698,7 @@ function M.setup()
   map("<leader>bb", function()
     M.run()
   end, "Build")
-  map("<leader>br", M.again, "Re-run last build")
+  map("<leader>bl", M.again, "Re-run last build")
   map("<leader>bB", function()
     M.run({ clean = true })
   end, "Clean rebuild")

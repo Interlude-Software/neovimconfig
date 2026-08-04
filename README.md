@@ -101,7 +101,7 @@ To override detection entirely, set `vim.g.build_command` (a string run through 
 | Key | Action |
 |---|---|
 | `<leader>bb` | Build |
-| `<leader>br` | Re-run last build (ignores current buffer) |
+| `<leader>bl` | Re-run last build (ignores current buffer) |
 | `<leader>bB` | Clean rebuild |
 | `<leader>bc` | CMake configure + build |
 | `<leader>bC` | CMake configure only |
@@ -109,6 +109,53 @@ To override detection entirely, set `vim.g.build_command` (a string run through 
 | `<leader>bo` | Raw output of the last build |
 | `<leader>bx` | Cancel the running build |
 | `]q` / `[q` | Next / previous quickfix entry |
+
+## Running
+
+`<leader>br` picks a **run profile** — a named set of command-line arguments for one of the project's built executables — and launches it, most-recently-run first. `<leader>bR` re-launches the top one without asking.
+
+Profiles live in `.nvim-run.json` at the project root, so they are committed and travel with the repo. `<leader>bn` creates one through prompts; `<leader>be` opens the file for hand-editing. Recency ordering is deliberately *not* stored there — it lives in `stdpath("cache")` so launching something never dirties your working tree.
+
+```json
+{
+  "profiles": [
+    { "name": "Host",     "args": ["--seed", "42"] },
+    { "name": "Client",   "args": ["--connect", "127.0.0.1", "--window-index", "1"] },
+    { "name": "Headless", "args": ["--headless", "--log-level", "verbose"], "filter": "warn" }
+  ]
+}
+```
+
+Per-profile keys: `args`, and optionally `exe` (relative to the project root — omit it and the newest executable under the build dir's `bin/` is used), `cwd` (**defaults to the project root**, since a game in development resolves `assets/`/`scripts/` relative to the repo, not to the binary), `env`, and `filter` (the log level the window opens at).
+
+**Several runs can be live at once** — launch `Host` and `Client` and each gets its own log window. `<leader>bg` jumps between them, `<leader>bk` stops one or all. Anything still running is killed when you quit nvim, so no stray processes.
+
+### Log window
+
+Output is captured and parsed for a `[tag] [LVL] message` shape (`ERR`/`WRN`/`INF`/`VRB`); the level token and tag are highlighted, and the winbar shows live error/warning counts. Note that programs which colour output only for a tty (a common pattern) emit clean text here, since the capture is a pipe rather than a terminal.
+
+| Key | Action (inside the log window) |
+|---|---|
+| `e` | Errors only |
+| `w` | Errors + warnings |
+| `a` | Everything |
+| `f` | Toggle follow (tailing) |
+| `r` | Restart this run |
+| `x` | Stop this run |
+| `q` | Close the window |
+
+Following is automatic: scrolling back pauses tailing, returning to the last line resumes it.
+
+| Key | Action |
+|---|---|
+| `<leader>br` | Pick and launch a run profile |
+| `<leader>bR` | Re-launch the most recent profile |
+| `<leader>bn` | New run profile (prompts) |
+| `<leader>be` | Edit `.nvim-run.json` |
+| `<leader>bg` | Go to a run's log window |
+| `<leader>bk` | Stop a run (or all) |
+
+`:Run` with no argument is the picker; `:Run <name>` launches a profile directly and tab-completes.
 
 ## Keymaps
 
@@ -148,13 +195,16 @@ Leader: `<Space>`
 | `<F12>` | Step out |
 | `<leader>du` | Toggle UI |
 
-### Build (see [Building](#building))
+### Build / Run (see [Building](#building), [Running](#running))
 | Key | Action |
 |---|---|
 | `<leader>bb` | Build current project |
 | `<leader>bp` | Pick CMake preset |
 | `<leader>bo` | Raw build output |
 | `<leader>bx` | Cancel build |
+| `<leader>br` | Pick and launch a run profile |
+| `<leader>bg` | Go to a run's log |
+| `<leader>bk` | Stop a run |
 | `]q` / `[q` | Next / previous quickfix entry |
 
 ### Misc

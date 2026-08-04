@@ -24,6 +24,14 @@ return {
               return require("user.build").statusline_hl()
             end,
           },
+          {
+            function()
+              return require("user.run").statusline()
+            end,
+            color = function()
+              return require("user.run").statusline_hl()
+            end,
+          },
         },
         lualine_x = { "encoding", "fileformat", "filetype" },
         lualine_y = { "progress" },
