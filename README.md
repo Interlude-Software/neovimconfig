@@ -114,19 +114,71 @@ To override detection entirely, set `vim.g.build_command` (a string run through 
 
 `<leader>br` picks a **run profile** — a named set of command-line arguments for one of the project's built executables — and launches it, most-recently-run first. `<leader>bR` re-launches the top one without asking.
 
-Profiles live in `.nvim-run.json` at the project root, so they are committed and travel with the repo. `<leader>bn` creates one through prompts; `<leader>be` opens the file for hand-editing. Recency ordering is deliberately *not* stored there — it lives in `stdpath("cache")` so launching something never dirties your working tree.
+Profiles live in `.nvim-run.json` at the project root, so they are committed and travel with the repo. Recency ordering is deliberately *not* stored there — it lives in `stdpath("cache")` so launching something never dirties your working tree.
+
+### The profile form
+
+`<leader>bn` opens a form rather than asking you to type an argument string; `<leader>be` reopens an existing profile in it. Checkboxes for flags, typed fields for values, and a live preview of the exact command at the bottom:
+
+```
+╭──────────────── New run profile ─────────────────╮
+│   Profile                                        │
+│       Name                Client                 │
+│                                                  │
+│   Flags                                          │
+│   [ ] Headless                                   │
+│   [x] Wait for enter                             │
+│                                                  │
+│   Values                                         │
+│       Seed                42                     │
+│       Connect to          127.0.0.1              │
+│       Log level           < verbose >            │
+│                                                  │
+│   Advanced                                       │
+│       Extra args          (none)                 │
+│       Executable          (auto-detect newest)   │
+│       Working dir         (project root)         │
+│       Log filter          < all >                │
+│                                                  │
+│   → zombiegame --wait-for-enter --seed 42 ...    │
+╰─ <CR> edit  <Space> toggle  <C-s> save  q cancel ╯
+```
+
+| Key | Action |
+|---|---|
+| `j` / `k`, `<Tab>` / `<S-Tab>` | Move between fields (headings are skipped) |
+| `<CR>` | Edit: toggle a checkbox, prompt for a value, pick from an enum |
+| `<Space>` | Toggle a checkbox, or cycle an enum without a picker |
+| `<C-s>` | Save |
+| `q` / `<Esc>` | Cancel |
+
+Integer fields are checked on save, and a rejected save leaves the form open with your input intact.
+
+### The option schema
+
+The form is generated from an `options` array in the same file — **this is maintained by hand**, since nothing can interrogate an executable for its real flags. `<leader>bE` opens the raw JSON to edit it (and scaffolds a starter file if there is none).
 
 ```json
 {
+  "options": [
+    { "flag": "--headless",    "type": "bool",   "label": "Headless" },
+    { "flag": "--seed",        "type": "int",    "label": "Seed" },
+    { "flag": "--connect",     "type": "string", "label": "Connect to" },
+    { "flag": "--log-level",   "type": "enum",   "label": "Log level",
+      "values": ["error", "warning", "info", "verbose"] }
+  ],
   "profiles": [
-    { "name": "Host",     "args": ["--seed", "42"] },
-    { "name": "Client",   "args": ["--connect", "127.0.0.1", "--window-index", "1"] },
-    { "name": "Headless", "args": ["--headless", "--log-level", "verbose"], "filter": "warn" }
+    { "name": "Host",   "args": ["--seed", "42"] },
+    { "name": "Client", "args": ["--connect", "127.0.0.1", "--window-index", "1"] }
   ]
 }
 ```
 
-Per-profile keys: `args`, and optionally `exe` (relative to the project root — omit it and the newest executable under the build dir's `bin/` is used), `cwd` (**defaults to the project root**, since a game in development resolves `assets/`/`scripts/` relative to the repo, not to the binary), `env`, and `filter` (the log level the window opens at).
+Types: `bool` renders a checkbox and contributes a bare flag; `int` is validated on save; `string` is free text; `enum` cycles through `values`. `label` is what the form shows — omit it and the flag is used.
+
+Arguments are stored as a plain list, so hand-writing them still works. Opening such a profile in the form parses the list back against the schema, and **anything the schema does not describe is preserved** in the "Extra args" field rather than being dropped. Saving rewrites arguments in schema order. A project with no `options` still gets a working form — just Name plus Extra args.
+
+Per-profile keys beyond `args`: `exe` (relative to the project root — omit it and the newest executable under the build dir's `bin/` is used), `cwd` (**defaults to the project root**, since a game in development resolves `assets/`/`scripts/` relative to the repo, not to the binary), `env`, and `filter` (the log level the window opens at).
 
 **Several runs can be live at once** — launch `Host` and `Client` and each gets its own log window. `<leader>bg` jumps between them, `<leader>bk` stops one or all. Anything still running is killed when you quit nvim, so no stray processes.
 
@@ -150,8 +202,9 @@ Following is automatic: scrolling back pauses tailing, returning to the last lin
 |---|---|
 | `<leader>br` | Pick and launch a run profile |
 | `<leader>bR` | Re-launch the most recent profile |
-| `<leader>bn` | New run profile (prompts) |
-| `<leader>be` | Edit `.nvim-run.json` |
+| `<leader>bn` | New run profile (form) |
+| `<leader>be` | Edit a run profile (form) |
+| `<leader>bE` | Edit `.nvim-run.json` (raw, for the option schema) |
 | `<leader>bg` | Go to a run's log window |
 | `<leader>bk` | Stop a run (or all) |
 

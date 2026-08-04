@@ -78,12 +78,26 @@ local function profile_path(root)
   return root .. "/" .. PROFILE_FILE
 end
 
-local function load_profiles(root)
+local function load_config(root)
   local data = read_json(profile_path(root))
-  if type(data) == "table" and type(data.profiles) == "table" then
-    return data.profiles
+  if type(data) ~= "table" then
+    return { options = {}, profiles = {} }
   end
-  return {}
+  return {
+    options = type(data.options) == "table" and data.options or {},
+    profiles = type(data.profiles) == "table" and data.profiles or {},
+  }
+end
+
+local function load_profiles(root)
+  return load_config(root).profiles
+end
+
+--- The option schema: what command-line switches this project understands, so the
+--- profile form can offer checkboxes and typed fields instead of a raw string.
+--- Maintained by hand — nothing here can discover an executable's real flags.
+local function load_options(root)
+  return load_config(root).options
 end
 
 --- vim.json.encode emits {} for an empty Lua table, so an argument-less profile
@@ -100,8 +114,35 @@ local function json_array(list)
   return "[" .. table.concat(parts, ", ") .. "]"
 end
 
-local function save_profiles(root, profiles)
-  local lines = { "{", '  "profiles": [' }
+--- Writing must round-trip the option schema, not just the profiles: saving a
+--- profile would otherwise silently delete the very definitions the form is
+--- built from.
+local function save_profiles(root, profiles, options)
+  options = options or load_options(root)
+
+  local lines = { "{" }
+
+  if #options > 0 then
+    lines[#lines + 1] = '  "options": ['
+    for i, opt in ipairs(options) do
+      local fields = {
+        string.format('      "flag": %s', vim.json.encode(opt.flag)),
+        string.format('      "type": %s', vim.json.encode(opt.type or "string")),
+      }
+      if opt.label and opt.label ~= "" then
+        fields[#fields + 1] = string.format('      "label": %s', vim.json.encode(opt.label))
+      end
+      if opt.values and #opt.values > 0 then
+        fields[#fields + 1] = string.format('      "values": %s', json_array(opt.values))
+      end
+      lines[#lines + 1] = "    {"
+      lines[#lines + 1] = table.concat(fields, ",\n")
+      lines[#lines + 1] = "    }" .. (i < #options and "," or "")
+    end
+    lines[#lines + 1] = "  ],"
+  end
+
+  lines[#lines + 1] = '  "profiles": ['
   for i, p in ipairs(profiles) do
     local fields = {
       string.format('      "name": %s', vim.json.encode(p.name or "Run")),
@@ -225,6 +266,181 @@ local function resolve_exe(profile, root)
     return nil, 'no built executable found — build first, or set "exe" in ' .. PROFILE_FILE
   end
   return candidates[1]
+end
+
+------------------------------------------------------------- profile form --
+
+local FILTER_VALUES = { "all", "warn", "err" }
+local OPTION_PREFIX = "opt:" -- namespaces schema fields away from name/exe/cwd
+
+--- Split a profile's argument list back into schema values plus whatever the
+--- schema does not describe. Editing must not quietly drop hand-written args, so
+--- anything unrecognised survives in a free-text field.
+local function split_args(args, options)
+  local by_flag = {}
+  for _, opt in ipairs(options) do
+    by_flag[opt.flag] = opt
+  end
+
+  local values, extra = {}, {}
+  local i = 1
+  while i <= (args and #args or 0) do
+    local token = args[i]
+    local flag, inline = token:match("^([^=]+)=(.*)$")
+    local opt = by_flag[flag or token]
+
+    if opt and opt.type == "bool" then
+      values[opt.flag] = true
+    elseif opt and inline then
+      values[opt.flag] = inline
+    elseif opt then
+      values[opt.flag] = args[i + 1]
+      i = i + 1
+    else
+      extra[#extra + 1] = token
+    end
+    i = i + 1
+  end
+  return values, extra
+end
+
+local function build_fields(profile, options)
+  local values, extra = split_args(profile.args, options)
+
+  local fields = {
+    { kind = "section", label = "Profile" },
+    { kind = "text", key = "name", label = "Name", value = profile.name or "", required = true },
+  }
+
+  -- Checkboxes before valued fields: a wall of mixed rows is harder to scan.
+  local flags, valued = {}, {}
+  for _, opt in ipairs(options) do
+    local field = {
+      key = OPTION_PREFIX .. opt.flag,
+      label = (opt.label and opt.label ~= "") and opt.label or opt.flag,
+      flag = opt.flag,
+      kind = opt.type == "bool" and "bool" or opt.type == "int" and "int" or opt.type == "enum" and "enum" or "text",
+      values = opt.values,
+      value = values[opt.flag],
+    }
+    if field.kind == "bool" then
+      field.value = values[opt.flag] == true
+      flags[#flags + 1] = field
+    else
+      valued[#valued + 1] = field
+    end
+  end
+
+  if #flags > 0 then
+    fields[#fields + 1] = { kind = "section", label = "Flags" }
+    vim.list_extend(fields, flags)
+  end
+  if #valued > 0 then
+    fields[#fields + 1] = { kind = "section", label = "Values" }
+    vim.list_extend(fields, valued)
+  end
+
+  fields[#fields + 1] = { kind = "section", label = "Advanced" }
+  -- Defaults belong in the placeholder, not the label: a label wide enough to
+  -- explain itself pushes the value column off to the right.
+  fields[#fields + 1] = {
+    kind = "text",
+    key = "extra",
+    label = "Extra args",
+    value = table.concat(extra, " "),
+    placeholder = "(none)",
+  }
+  fields[#fields + 1] = {
+    kind = "text",
+    key = "exe",
+    label = "Executable",
+    value = profile.exe or "",
+    placeholder = "(auto-detect newest)",
+  }
+  fields[#fields + 1] = {
+    kind = "text",
+    key = "cwd",
+    label = "Working dir",
+    value = profile.cwd or "",
+    placeholder = "(project root)",
+  }
+  fields[#fields + 1] =
+    { kind = "enum", key = "filter", label = "Log filter", values = FILTER_VALUES, value = profile.filter or "all" }
+
+  return fields
+end
+
+--- Rebuild the argument list in schema order, so a saved profile reads the same
+--- way every time regardless of how it was edited.
+local function args_from(values, options)
+  local args = {}
+  for _, opt in ipairs(options) do
+    local value = values[OPTION_PREFIX .. opt.flag]
+    if opt.type == "bool" then
+      if value == true then
+        args[#args + 1] = opt.flag
+      end
+    elseif value ~= nil and value ~= "" then
+      args[#args + 1] = opt.flag
+      args[#args + 1] = tostring(value)
+    end
+  end
+  vim.list_extend(args, vim.split(vim.trim(values.extra or ""), "%s+", { trimempty = true }))
+  return args
+end
+
+local function profile_from(values, options)
+  return {
+    name = vim.trim(values.name or ""),
+    args = args_from(values, options),
+    exe = values.exe ~= "" and values.exe or nil,
+    cwd = values.cwd ~= "" and values.cwd or nil,
+    filter = values.filter ~= "all" and values.filter or nil,
+  }
+end
+
+--- Open the form for `profile`; `index` nil means append a new one.
+local function open_form(root, profile, index)
+  local options = load_options(root)
+  local form = require("user.form")
+
+  form.open({
+    title = index and ("Edit profile: " .. (profile.name or "")) or "New run profile",
+    fields = build_fields(profile, options),
+    preview = function(state)
+      local values = {}
+      for _, field in ipairs(state.fields) do
+        if field.key then
+          values[field.key] = field.value
+        end
+      end
+      local args = args_from(values, options)
+      local exe = values.exe ~= "" and values.exe or vim.fs.basename(built_executables()[1] or "<exe>")
+      return "→ " .. exe .. " " .. table.concat(args, " ")
+    end,
+    on_submit = function(values)
+      local built = profile_from(values, options)
+      if built.name == "" then
+        vim.notify("profile needs a name", vim.log.levels.ERROR)
+        return false -- keeps the form open with everything else intact
+      end
+      local profiles = load_profiles(root)
+      if index then
+        profiles[index] = vim.tbl_extend("force", profiles[index], built)
+      else
+        profiles[#profiles + 1] = built
+      end
+      save_profiles(root, profiles, options)
+      vim.notify(("saved %q — %s"):format(built.name, table.concat(built.args, " ")))
+    end,
+  })
+
+  if #options == 0 then
+    vim.notify(
+      'no "options" schema in ' .. PROFILE_FILE .. " yet — add one for checkboxes and typed fields",
+      vim.log.levels.WARN
+    )
+  end
 end
 
 --------------------------------------------------------------- log parsing --
@@ -628,55 +844,48 @@ function M.again()
 end
 
 function M.new_profile()
-  local root = project_root()
-  local suggested = built_executables()[1]
+  open_form(project_root(), { args = {} }, nil)
+end
 
-  vim.ui.input({ prompt = "Profile name: " }, function(name)
-    if not name or name == "" then
-      return
+--- Edit an existing profile in the form.
+function M.edit_profile()
+  local root = project_root()
+  local profiles = load_profiles(root)
+  if #profiles == 0 then
+    return M.new_profile()
+  end
+
+  local items = vim.tbl_map(function(p)
+    return p.name .. "  —  " .. table.concat(p.args or {}, " ")
+  end, profiles)
+
+  vim.ui.select(items, { prompt = "Edit profile:" }, function(_, idx)
+    if idx then
+      open_form(root, profiles[idx], idx)
     end
-    vim.ui.input({ prompt = "Arguments: " }, function(args)
-      if args == nil then
-        return
-      end
-      vim.ui.input({
-        prompt = "Executable (blank = auto-detect): ",
-        default = "",
-      }, function(exe)
-        if exe == nil then
-          return
-        end
-        local profiles = load_profiles(root)
-        profiles[#profiles + 1] = {
-          name = name,
-          args = vim.split(vim.trim(args), "%s+", { trimempty = true }),
-          exe = exe ~= "" and exe or nil,
-        }
-        save_profiles(root, profiles)
-        vim.notify(
-          ("saved profile %q to %s%s"):format(
-            name,
-            PROFILE_FILE,
-            suggested and ("\nauto-detected exe: " .. vim.fn.fnamemodify(suggested, ":~:.")) or ""
-          )
-        )
-      end)
-    end)
   end)
 end
 
-function M.edit_profiles()
+--- Open the raw config, for editing the option schema itself.
+function M.edit_config()
   local root = project_root()
   local path = profile_path(root)
   if not uv.fs_stat(path) then
-    save_profiles(root, {
-      {
-        name = "Run",
-        args = {},
-        exe = nil,
-        cwd = nil,
-      },
-    })
+    -- Seed a schema skeleton: the form has nothing to show without one, and the
+    -- shape is easier to copy than to recall.
+    vim.fn.writefile({
+      "{",
+      '  "options": [',
+      '    { "flag": "--headless", "type": "bool", "label": "Headless" },',
+      '    { "flag": "--seed", "type": "int", "label": "Seed" },',
+      '    { "flag": "--name", "type": "string", "label": "Name" },',
+      '    { "flag": "--log-level", "type": "enum", "label": "Log level",',
+      '      "values": ["error", "warning", "info", "verbose"] }',
+      "  ],",
+      '  "profiles": []',
+      "}",
+    }, path)
+    vim.notify("created " .. PROFILE_FILE .. " — edit the options to match your executable")
   end
   vim.cmd("edit " .. vim.fn.fnameescape(path))
 end
@@ -802,7 +1011,8 @@ function M.setup()
   map("<leader>br", M.pick, "Run profile")
   map("<leader>bR", M.again, "Re-run last profile")
   map("<leader>bn", M.new_profile, "New run profile")
-  map("<leader>be", M.edit_profiles, "Edit run profiles")
+  map("<leader>be", M.edit_profile, "Edit run profile (form)")
+  map("<leader>bE", M.edit_config, "Edit run config (raw JSON)")
   map("<leader>bg", M.logs, "Go to run log")
   map("<leader>bk", M.stop_pick, "Stop a run")
 
