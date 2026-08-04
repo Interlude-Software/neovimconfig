@@ -174,6 +174,12 @@ The form is generated from an `options` array in the same file — **this is mai
 }
 ```
 
+#### Keeping it in sync
+
+The schema drifts as soon as you add a flag to the program, and nothing else will tell you. `<leader>bf` (or `:RunScanFlags`) greps the source for quoted `--flag` literals and diffs them against the schema: anything missing lands in the quickfix list, jumpable to the line that uses it, and schema entries no longer found in the source are reported as possibly stale. `:RunScanFlags!` appends the missing ones and opens the file so you can check them.
+
+Types are guessed from context — a flag followed by `argv[++i]` is a value, one with `atoi`/`stoi`/`strtoul` on the same line is an `int`, a bare comparison is a switch. **Review what it adds**: it is a grep, not a parser, so it cannot see flags built by string concatenation and it never invents `enum` values.
+
 Types: `bool` renders a checkbox and contributes a bare flag; `int` is validated on save; `string` is free text; `enum` cycles through `values`. `label` is what the form shows — omit it and the flag is used.
 
 Arguments are stored as a plain list, so hand-writing them still works. Opening such a profile in the form parses the list back against the schema, and **anything the schema does not describe is preserved** in the "Extra args" field rather than being dropped. Saving rewrites arguments in schema order. A project with no `options` still gets a working form — just Name plus Extra args.
@@ -207,6 +213,7 @@ Following is automatic: scrolling back pauses tailing, returning to the last lin
 | `<leader>bE` | Edit `.nvim-run.json` (raw, for the option schema) |
 | `<leader>bg` | Go to a run's log window |
 | `<leader>bk` | Stop a run (or all) |
+| `<leader>bf` | Scan the source for flags missing from the schema |
 
 `:Run` with no argument is the picker; `:Run <name>` launches a profile directly and tab-completes.
 

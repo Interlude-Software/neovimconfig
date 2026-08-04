@@ -74,6 +74,11 @@ local function project_root()
   return vim.fn.getcwd()
 end
 
+local function is_dir(path)
+  local st = uv.fs_stat(path)
+  return st ~= nil and st.type == "directory"
+end
+
 local function profile_path(root)
   return root .. "/" .. PROFILE_FILE
 end
@@ -890,6 +895,168 @@ function M.edit_config()
   vim.cmd("edit " .. vim.fn.fnameescape(path))
 end
 
+------------------------------------------------------------- schema drift --
+
+-- The option schema is hand-maintained, so it silently rots as flags are added
+-- to the program. This finds quoted "--flag" literals in the source and diffs
+-- them against the schema. It is a grep, not a parser: it cannot know a flag's
+-- real type, and a flag built by string concatenation is invisible to it.
+
+local SOURCE_DIRS = { "src", "source", "Source", "lib", "app" }
+
+local function scan_paths(root)
+  local paths = {}
+  for _, name in ipairs(SOURCE_DIRS) do
+    if is_dir(root .. "/" .. name) then
+      paths[#paths + 1] = name
+    end
+  end
+  if #paths == 0 then
+    paths = { "." }
+  end
+  return paths
+end
+
+--- flag -> { file, lnum, takes_value } for every quoted --flag in the sources.
+local function flags_in_source(root)
+  if vim.fn.executable("rg") ~= 1 then
+    vim.notify("ripgrep (rg) is needed to scan for flags", vim.log.levels.ERROR)
+    return nil
+  end
+
+  local cmd = {
+    "rg",
+    "--no-heading",
+    "--line-number",
+    "--with-filename",
+    "--glob=!build*",
+    "--glob=!external",
+    "--glob=!third_party",
+    '"--[a-zA-Z][a-zA-Z0-9-]*"',
+  }
+  vim.list_extend(cmd, scan_paths(root))
+
+  local res = vim.system(cmd, { cwd = root, text = true }):wait()
+  -- rg exits 1 when it simply found nothing, which is not an error here
+  if res.code > 1 then
+    vim.notify("rg failed: " .. (res.stderr or ""), vim.log.levels.ERROR)
+    return nil
+  end
+
+  local found = {}
+  for line in (res.stdout or ""):gmatch("[^\n]+") do
+    local file, lnum, text = line:match("^([^:]+):(%d+):(.*)$")
+    if file then
+      -- A flag that consumes the next argv entry is a value option; a bare
+      -- comparison is a switch. Both idioms sit on the comparison line.
+      local takes_value = text:find("argv%[%+%+i%]") ~= nil
+        or text:find("i %+ 1 < argc") ~= nil
+        or text:find("i%+1 < argc") ~= nil
+      -- A numeric conversion on the same line narrows "value" to "integer".
+      local numeric = text:find("ato[il]") ~= nil or text:find("sto[iul]") ~= nil or text:find("strtou?l") ~= nil
+      for flag in text:gmatch('"(%-%-[a-zA-Z][a-zA-Z0-9%-]*)"') do
+        local existing = found[flag]
+        if not existing then
+          found[flag] = { file = file, lnum = tonumber(lnum), takes_value = takes_value, numeric = numeric }
+        else
+          -- A flag can be referenced in several places; the most specific
+          -- observation wins so one bare mention does not downgrade it.
+          existing.takes_value = existing.takes_value or takes_value
+          existing.numeric = existing.numeric or numeric
+        end
+      end
+    end
+  end
+  return found
+end
+
+--- The report text and the written type must agree, so both derive from here.
+local function guess_type(where)
+  if not where.takes_value then
+    return "bool"
+  end
+  return where.numeric and "int" or "string"
+end
+
+local function describe(where)
+  local kind = guess_type(where)
+  return kind == "bool" and "a switch" or kind == "int" and "an integer" or "a value"
+end
+
+local function label_for(flag)
+  local words = flag:gsub("^%-%-", ""):gsub("%-", " ")
+  return (words:gsub("^%l", string.upper))
+end
+
+--- Diff the schema against the source. With `append`, missing flags are added to
+--- the schema with a guessed type and the config is opened for review.
+function M.scan_flags(append)
+  local root = project_root()
+  local found = flags_in_source(root)
+  if not found then
+    return
+  end
+
+  local options = load_options(root)
+  local in_schema = {}
+  for _, opt in ipairs(options) do
+    in_schema[opt.flag] = true
+  end
+
+  local missing, stale = {}, {}
+  for flag, where in pairs(found) do
+    if not in_schema[flag] then
+      missing[#missing + 1] = { flag = flag, where = where }
+    end
+  end
+  table.sort(missing, function(a, b)
+    return a.flag < b.flag
+  end)
+  for _, opt in ipairs(options) do
+    if not found[opt.flag] then
+      stale[#stale + 1] = opt.flag
+    end
+  end
+
+  -- Missing flags go to the quickfix list so each one is jumpable to its usage.
+  local items = {}
+  for _, entry in ipairs(missing) do
+    items[#items + 1] = {
+      filename = root .. "/" .. entry.where.file,
+      lnum = entry.where.lnum,
+      text = string.format("%s  (not in schema — looks like %s)", entry.flag, describe(entry.where)),
+      type = "W",
+    }
+  end
+  vim.fn.setqflist({}, " ", { title = "run: flags missing from " .. PROFILE_FILE, items = items })
+
+  local summary = string.format("%d flag(s) in source, %d missing from schema", vim.tbl_count(found), #missing)
+  if #stale > 0 then
+    summary = summary .. "\nnot found in source (stale?): " .. table.concat(stale, " ")
+  end
+
+  if #missing == 0 then
+    vim.notify(summary .. " — schema is up to date")
+    return
+  end
+
+  if not append then
+    vim.notify(summary .. " — <leader>xq to review, :RunScanFlags! to add them", vim.log.levels.WARN)
+    return
+  end
+
+  for _, entry in ipairs(missing) do
+    options[#options + 1] = {
+      flag = entry.flag,
+      type = guess_type(entry.where),
+      label = label_for(entry.flag),
+    }
+  end
+  save_profiles(root, load_profiles(root), options)
+  vim.notify(summary .. " — added; check the guessed types", vim.log.levels.WARN)
+  vim.cmd("edit " .. vim.fn.fnameescape(profile_path(root)))
+end
+
 --- Jump to a run's log window.
 function M.logs()
   local list = active()
@@ -1015,6 +1182,13 @@ function M.setup()
   map("<leader>bE", M.edit_config, "Edit run config (raw JSON)")
   map("<leader>bg", M.logs, "Go to run log")
   map("<leader>bk", M.stop_pick, "Stop a run")
+  map("<leader>bf", function()
+    M.scan_flags(false)
+  end, "Scan source for unlisted flags")
+
+  vim.api.nvim_create_user_command("RunScanFlags", function(cmd)
+    M.scan_flags(cmd.bang)
+  end, { bang = true, desc = "Diff the option schema against --flags in the source (! to add missing)" })
 
   vim.api.nvim_create_user_command("Run", function(cmd)
     if cmd.args == "" then
