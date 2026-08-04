@@ -3,7 +3,7 @@ return {
   opts = {
     registries = {
       "github:mason-org/mason-registry",
-      "github:Crashdummyy/mason-registry",  -- Required for roslyn
+      "github:Crashdummyy/mason-registry", -- Required for roslyn
     },
   },
   config = function(_, opts)

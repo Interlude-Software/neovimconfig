@@ -23,9 +23,12 @@ vim.env.PATH = vim.env.PATH .. ";C:\\Program Files\\Git\\usr\\bin"
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.loop.fs_stat(lazypath) then
   vim.fn.system({
-    "git", "clone", "--filter=blob:none",
+    "git",
+    "clone",
+    "--filter=blob:none",
     "https://github.com/folke/lazy.nvim.git",
-    "--branch=stable", lazypath,
+    "--branch=stable",
+    lazypath,
   })
 end
 
@@ -33,21 +36,21 @@ vim.opt.rtp:prepend(lazypath)
 
 vim.opt.number = true
 vim.opt.relativenumber = true
-vim.opt.cursorline = true      -- highlight the current line
-vim.opt.signcolumn = 'yes'     -- always show sign column (prevents text shifting when gitsigns/LSP add signs)
-vim.opt.scrolloff = 8          -- keep 8 lines visible above/below cursor
-vim.opt.expandtab = true       -- tabs become spaces
-vim.opt.tabstop = 4            -- tab width
-vim.opt.shiftwidth = 4         -- indent width
-vim.opt.smartindent = true     -- auto-indent new lines
-vim.opt.wrap = false           -- don't wrap long lines
-vim.opt.colorcolumn = "120"    -- show print width guide
-vim.opt.ignorecase = true      -- case-insensitive search...
-vim.opt.smartcase = true       -- ...unless you use a capital letter
-vim.opt.termguicolors = true   -- enable 24-bit colors (themes need this)
-vim.opt.splitright = true      -- vertical splits open to the right
-vim.opt.splitbelow = true      -- horizontal splits open below
-vim.opt.shortmess:append("A")  -- skip the swap-file ATTENTION prompt (crashes LSP jump handlers otherwise)
+vim.opt.cursorline = true -- highlight the current line
+vim.opt.signcolumn = "yes" -- always show sign column (prevents text shifting when gitsigns/LSP add signs)
+vim.opt.scrolloff = 8 -- keep 8 lines visible above/below cursor
+vim.opt.expandtab = true -- tabs become spaces
+vim.opt.tabstop = 4 -- tab width
+vim.opt.shiftwidth = 4 -- indent width
+vim.opt.smartindent = true -- auto-indent new lines
+vim.opt.wrap = false -- don't wrap long lines
+vim.opt.colorcolumn = "120" -- show print width guide
+vim.opt.ignorecase = true -- case-insensitive search...
+vim.opt.smartcase = true -- ...unless you use a capital letter
+vim.opt.termguicolors = true -- enable 24-bit colors (themes need this)
+vim.opt.splitright = true -- vertical splits open to the right
+vim.opt.splitbelow = true -- horizontal splits open below
+vim.opt.shortmess:append("A") -- skip the swap-file ATTENTION prompt (crashes LSP jump handlers otherwise)
 
 require("lazy").setup("plugins")
 
@@ -55,23 +58,31 @@ require("lazy").setup("plugins")
 -- lives outside lua/plugins/ and is wired up by hand.
 require("user.build").setup()
 
-vim.keymap.set('n', ']w', function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN }) end)
-vim.keymap.set('n', '[w', function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.WARN }) end)
-vim.keymap.set('n', ']e', function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end)
-vim.keymap.set('n', '[e', function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end)
+vim.keymap.set("n", "]w", function()
+  vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN })
+end)
+vim.keymap.set("n", "[w", function()
+  vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.WARN })
+end)
+vim.keymap.set("n", "]e", function()
+  vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR })
+end)
+vim.keymap.set("n", "[e", function()
+  vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR })
+end)
 
 -- Step through the quickfix list (build errors), wrapping around at either end
 local function qf_step(forward)
   return function()
     if vim.tbl_isempty(vim.fn.getqflist()) then
-      vim.notify('quickfix list is empty', vim.log.levels.INFO)
+      vim.notify("quickfix list is empty", vim.log.levels.INFO)
       return
     end
     -- cnext/cprevious error out at the ends instead of wrapping
-    if not pcall(vim.cmd, forward and 'cnext' or 'cprevious') then
-      vim.cmd(forward and 'cfirst' or 'clast')
+    if not pcall(vim.cmd, forward and "cnext" or "cprevious") then
+      vim.cmd(forward and "cfirst" or "clast")
     end
   end
 end
-vim.keymap.set('n', ']q', qf_step(true), { desc = 'Next quickfix' })
-vim.keymap.set('n', '[q', qf_step(false), { desc = 'Prev quickfix' })
+vim.keymap.set("n", "]q", qf_step(true), { desc = "Next quickfix" })
+vim.keymap.set("n", "[q", qf_step(false), { desc = "Prev quickfix" })

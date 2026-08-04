@@ -12,9 +12,9 @@ return {
     },
   },
   keys = {
-    { "<leader>cc", "<cmd>CopilotChatToggle<cr>",  desc = "Copilot Chat toggle" },
-    { "<leader>ce", "<cmd>CopilotChatExplain<cr>", desc = "Copilot explain",    mode = { "n", "v" } },
-    { "<leader>cf", "<cmd>CopilotChatFix<cr>",     desc = "Copilot fix",        mode = { "n", "v" } },
-    { "<leader>cr", "<cmd>CopilotChatReview<cr>",  desc = "Copilot review",     mode = { "n", "v" } },
+    { "<leader>cc", "<cmd>CopilotChatToggle<cr>", desc = "Copilot Chat toggle" },
+    { "<leader>ce", "<cmd>CopilotChatExplain<cr>", desc = "Copilot explain", mode = { "n", "v" } },
+    { "<leader>cf", "<cmd>CopilotChatFix<cr>", desc = "Copilot fix", mode = { "n", "v" } },
+    { "<leader>cr", "<cmd>CopilotChatReview<cr>", desc = "Copilot review", mode = { "n", "v" } },
   },
 }

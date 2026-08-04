@@ -30,13 +30,21 @@ return {
     end
 
     dap.listeners.after.event_initialized["dapui_config"] = dapui.open
-    dap.listeners.before.event_terminated["dapui_config"] = function() dapui.close(); clear_virtual_text() end
-    dap.listeners.before.event_exited["dapui_config"] = function() dapui.close(); clear_virtual_text() end
-    dap.listeners.after.disconnect["dapui_config"] = function() dapui.close(); clear_virtual_text() end
+    dap.listeners.before.event_terminated["dapui_config"] = function()
+      dapui.close()
+      clear_virtual_text()
+    end
+    dap.listeners.before.event_exited["dapui_config"] = function()
+      dapui.close()
+      clear_virtual_text()
+    end
+    dap.listeners.after.disconnect["dapui_config"] = function()
+      dapui.close()
+      clear_virtual_text()
+    end
 
-    local adapter_dll = vim.fn.glob(
-      vim.fn.expand("~/.vscode/extensions/visualstudiotoolsforunity.vstuc-*/bin/UnityDebugAdapter.dll")
-    )
+    local adapter_dll =
+      vim.fn.glob(vim.fn.expand("~/.vscode/extensions/visualstudiotoolsforunity.vstuc-*/bin/UnityDebugAdapter.dll"))
 
     dap.adapters.vstuc = {
       type = "executable",
@@ -65,7 +73,9 @@ return {
     local function unity_project_path(pid)
       local args = vim.fn.trim(vim.fn.system("ps -p " .. pid .. " -o args="))
       local s, e = args:lower():find("%-projectpath%s+")
-      if not s then return nil end
+      if not s then
+        return nil
+      end
       local rest = args:sub(e + 1)
       return rest:match("(.-)%s+%-%a") or rest:match("(.+)$")
     end
@@ -74,7 +84,9 @@ return {
 
     local function load_cached_project()
       local f = io.open(cache_file, "r")
-      if not f then return nil end
+      if not f then
+        return nil
+      end
       local v = vim.fn.trim(f:read("*a"))
       f:close()
       return v ~= "" and v or nil
@@ -82,7 +94,10 @@ return {
 
     local function save_cached_project(project)
       local f = io.open(cache_file, "w")
-      if f then f:write(project); f:close() end
+      if f then
+        f:write(project)
+        f:close()
+      end
     end
 
     local unity_selection = nil
@@ -103,11 +118,15 @@ return {
           local project = pid_project[pid]
           local name = vim.fn.fnamemodify(project, ":t")
           table.insert(entries, {
-            pid     = pid,
-            addr    = addr,
+            pid = pid,
+            addr = addr,
             project = project,
-            label   = (name ~= "" and name or proc) .. " (PID " .. pid .. ")  " .. addr
-                        .. (project ~= "" and ("  [" .. project .. "]") or ""),
+            label = (name ~= "" and name or proc)
+              .. " (PID "
+              .. pid
+              .. ")  "
+              .. addr
+              .. (project ~= "" and ("  [" .. project .. "]") or ""),
           })
         end
       end
@@ -130,7 +149,9 @@ return {
           table.insert(labels, i .. ". " .. e.label)
         end
         local choice = vim.fn.inputlist(labels)
-        if choice < 1 or choice > #entries then return nil end
+        if choice < 1 or choice > #entries then
+          return nil
+        end
         entry = entries[choice]
       end
       unity_selection = entry
@@ -155,7 +176,9 @@ return {
         unity_selection = nil
       end
       -- Auto-select by cached project
-      local matches = vim.tbl_filter(function(e) return e.project == cached_project end, entries)
+      local matches = vim.tbl_filter(function(e)
+        return e.project == cached_project
+      end, entries)
       if #matches >= 1 then
         unity_selection = matches[1]
         return matches[1].addr
@@ -171,10 +194,12 @@ return {
 
       if cached then
         table.insert(configs, {
-          type    = "vstuc",
+          type = "vstuc",
           request = "attach",
-          name    = "Re-attach  [" .. vim.fn.fnamemodify(cached, ":t") .. "]",
-          endPoint    = function() return unity_endpoint_cached(cached) end,
+          name = "Re-attach  [" .. vim.fn.fnamemodify(cached, ":t") .. "]",
+          endPoint = function()
+            return unity_endpoint_cached(cached)
+          end,
           projectPath = function()
             return (unity_selection and unity_selection.project) or cached
           end,
@@ -182,34 +207,40 @@ return {
       end
 
       table.insert(configs, {
-        type    = "vstuc",
+        type = "vstuc",
         request = "attach",
-        name    = "Attach to Unity Editor",
-        endPoint    = function() return unity_endpoint_pick() end,
+        name = "Attach to Unity Editor",
+        endPoint = function()
+          return unity_endpoint_pick()
+        end,
         projectPath = function()
-          if unity_selection then return unity_selection.project end
+          if unity_selection then
+            return unity_selection.project
+          end
           local pids = vim.fn.systemlist("pgrep -x Unity 2>/dev/null")
           if #pids == 1 then
             local path = unity_project_path(vim.fn.trim(pids[1]))
-            if path then return path end
+            if path then
+              return path
+            end
           end
           return vim.fn.input("Unity project path: ", vim.fn.getcwd(), "dir")
         end,
       })
 
       table.insert(configs, {
-        type    = "coreclr",
+        type = "coreclr",
         request = "launch",
-        name    = "Launch .NET App",
+        name = "Launch .NET App",
         program = function()
           return vim.fn.input("Path to DLL: ", vim.fn.getcwd() .. "/bin/Debug/", "file")
         end,
       })
 
       table.insert(configs, {
-        type      = "coreclr",
-        request   = "attach",
-        name      = "Attach to .NET Process",
+        type = "coreclr",
+        request = "attach",
+        name = "Attach to .NET Process",
         -- Only list .NET processes so the picker isn't every PID on the system.
         -- NOTE: `dotnet run` is just the launcher — it spawns your app as a child
         -- apphost from `bin/Debug|Release/...` (named after the project, e.g.
@@ -235,28 +266,32 @@ return {
       -- Native C / C++ debugging via codelldb.
       local native = {
         {
-          type    = "codelldb",
+          type = "codelldb",
           request = "launch",
-          name    = "Launch C/C++ executable",
+          name = "Launch C/C++ executable",
           program = function()
             return vim.fn.input("Path to executable: ", vim.fn.getcwd() .. "/", "file")
           end,
-          cwd        = "${workspaceFolder}",
+          cwd = "${workspaceFolder}",
           stopOnEntry = false,
         },
         {
-          type    = "codelldb",
+          type = "codelldb",
           request = "attach",
-          name    = "Attach to process (C/C++)",
-          pid     = function() return require("dap.utils").pick_process() end,
-          cwd     = "${workspaceFolder}",
+          name = "Attach to process (C/C++)",
+          pid = function()
+            return require("dap.utils").pick_process()
+          end,
+          cwd = "${workspaceFolder}",
         },
       }
 
       -- When editing native code, surface these first; otherwise append.
       local ft = vim.bo.filetype
       if ft == "c" or ft == "cpp" then
-        for i = #native, 1, -1 do table.insert(configs, 1, native[i]) end
+        for i = #native, 1, -1 do
+          table.insert(configs, 1, native[i])
+        end
       else
         vim.list_extend(configs, native)
       end
@@ -275,27 +310,43 @@ return {
           table.insert(labels, i .. ". " .. c.name)
         end
         local choice = vim.fn.inputlist(labels)
-        if choice < 1 or choice > #configs then return end
+        if choice < 1 or choice > #configs then
+          return
+        end
         entry = configs[choice]
       end
       dap.run(entry)
     end
 
     vim.keymap.set("n", "<F5>", function()
-      if dap.session() then dap.continue() else start_debug() end
+      if dap.session() then
+        dap.continue()
+      else
+        start_debug()
+      end
     end, { desc = "Debug: continue / start" })
-    vim.keymap.set("n", "<F10>",      dap.step_over,         { desc = "Debug: step over" })
-    vim.keymap.set("n", "<F11>",      dap.step_into,         { desc = "Debug: step into" })
-    vim.keymap.set("n", "<F12>",      dap.step_out,          { desc = "Debug: step out" })
+    vim.keymap.set("n", "<F10>", dap.step_over, { desc = "Debug: step over" })
+    vim.keymap.set("n", "<F11>", dap.step_into, { desc = "Debug: step into" })
+    vim.keymap.set("n", "<F12>", dap.step_out, { desc = "Debug: step out" })
     vim.keymap.set("n", "<leader>db", dap.toggle_breakpoint, { desc = "Debug: toggle breakpoint" })
     vim.keymap.set("n", "<leader>dc", function()
-      if dap.session() then dap.continue() else start_debug() end
+      if dap.session() then
+        dap.continue()
+      else
+        start_debug()
+      end
     end, { desc = "Debug: continue / start" })
-    vim.keymap.set("n", "<leader>dh", function() dapui.eval() end, { desc = "Debug: hover eval" })
-    vim.keymap.set("v", "<leader>dh", function() dapui.eval() end, { desc = "Debug: eval selection" })
+    vim.keymap.set("n", "<leader>dh", function()
+      dapui.eval()
+    end, { desc = "Debug: hover eval" })
+    vim.keymap.set("v", "<leader>dh", function()
+      dapui.eval()
+    end, { desc = "Debug: eval selection" })
     vim.keymap.set("n", "<leader>du", function()
       dapui.toggle()
-      if not dap.session() then clear_virtual_text() end
+      if not dap.session() then
+        clear_virtual_text()
+      end
     end, { desc = "Debug: toggle UI" })
   end,
 }

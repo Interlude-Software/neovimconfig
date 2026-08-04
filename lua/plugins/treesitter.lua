@@ -4,7 +4,16 @@ return {
   config = function()
     -- New nvim-treesitter (v1.x): no configs.setup() — highlighting is automatic via ftplugins.
     require("nvim-treesitter.install").install({
-      "c", "cpp", "c_sharp", "lua", "vim", "vimdoc", "json", "yaml", "markdown", "markdown_inline",
+      "c",
+      "cpp",
+      "c_sharp",
+      "lua",
+      "vim",
+      "vimdoc",
+      "json",
+      "yaml",
+      "markdown",
+      "markdown_inline",
     })
 
     -- telescope.nvim still calls parsers.ft_to_lang which was removed

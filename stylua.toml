@@ -1,0 +1,7 @@
+
+# Match the style this config is already written in — stylua's defaults are tabs
+# and an 80-column width, which would reformat every file on the next save.
+column_width = 120 # same as the colorcolumn set in init.lua
+indent_type = "Spaces"
+indent_width = 2
+quote_style = "AutoPreferDouble"
