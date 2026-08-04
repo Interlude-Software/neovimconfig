@@ -184,6 +184,22 @@ local function touch_recent(root, name)
   vim.fn.writefile({ vim.json.encode(all) }, RECENT_STATE)
 end
 
+--- Carry a profile's launch history across a rename; recency is keyed by name, so
+--- renaming would otherwise drop a frequently-used profile to the bottom.
+local function rename_recent(root, from, to)
+  if from == to or not from then
+    return
+  end
+  local all = recents()
+  local per_project = all[root]
+  if not per_project or per_project[from] == nil then
+    return
+  end
+  per_project[to] = per_project[from]
+  per_project[from] = nil
+  vim.fn.writefile({ vim.json.encode(all) }, RECENT_STATE)
+end
+
 --- Profiles most-recently-launched first, then never-launched ones by name.
 local function sorted_profiles(root)
   local profiles = load_profiles(root)
@@ -473,6 +489,12 @@ local function args_from(values, options)
   return args
 end
 
+-- Everything the form owns. Any of these may legitimately become nil (an emptied
+-- field), which is why merging an edit cannot go through vim.tbl_extend: a nil
+-- carries no key, so the previous value would survive and the field could never
+-- be cleared. Keys outside this set — `env`, anything hand-added — are preserved.
+local FORM_KEYS = { "name", "args", "exe", "cwd", "filter" }
+
 local function profile_from(values, options)
   return {
     name = vim.trim(values.name or ""),
@@ -481,6 +503,15 @@ local function profile_from(values, options)
     cwd = values.cwd ~= "" and values.cwd or nil,
     filter = values.filter ~= "all" and values.filter or nil,
   }
+end
+
+--- Apply an edited profile over the stored one, clearing what the form cleared.
+local function merge_profile(existing, built)
+  local merged = vim.deepcopy(existing or {})
+  for _, key in ipairs(FORM_KEYS) do
+    merged[key] = built[key] -- assigning nil removes the key
+  end
+  return merged
 end
 
 --- Open the form for `profile`; `index` nil means append a new one.
@@ -510,7 +541,8 @@ local function open_form(root, profile, index)
       end
       local profiles = load_profiles(root)
       if index then
-        profiles[index] = vim.tbl_extend("force", profiles[index], built)
+        rename_recent(root, profiles[index] and profiles[index].name, built.name)
+        profiles[index] = merge_profile(profiles[index], built)
       else
         profiles[#profiles + 1] = built
       end
