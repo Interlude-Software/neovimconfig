@@ -13,12 +13,22 @@
 --   int      string constrained to an integer on save
 --   bool     checkbox; contributes a bare flag when true
 --   enum     one of `values`, cycled or picked
+--   choice   picked from `values_fn()`, evaluated on open so the list can reflect
+--            the state of the world (which executables exist right now)
 --
 -- Not a plugin spec: see the note at the top of user/build.lua.
 
 local M = {}
 
 local NS = vim.api.nvim_create_namespace("user_form")
+
+--- Sentinel a `choice` entry can carry to mean "let me type it instead", so a
+--- picker never becomes a dead end when the wanted value is not on the list.
+M.PROMPT = setmetatable({}, {
+  __tostring = function()
+    return "<prompt>"
+  end,
+})
 
 local CHECK_INDENT = "  "
 local VALUE_INDENT = "      "
@@ -151,6 +161,39 @@ local function activate(form, cycle)
   if field.kind == "bool" then
     field.value = not field.value
     render(form)
+    return
+  end
+
+  if field.kind == "choice" then
+    local prompt_for_value = function()
+      vim.ui.input({ prompt = field.label .. ": ", default = tostring(field.value or "") }, function(value)
+        if value ~= nil then
+          field.value = value
+          render(form)
+        end
+      end)
+    end
+
+    local items = field.values_fn and field.values_fn() or {}
+    if #items == 0 then
+      return prompt_for_value()
+    end
+
+    vim.ui.select(items, {
+      prompt = field.label,
+      format_item = function(item)
+        return item.label
+      end,
+    }, function(item)
+      if not item then
+        return
+      end
+      if item.value == M.PROMPT then
+        return prompt_for_value()
+      end
+      field.value = item.value
+      render(form)
+    end)
     return
   end
 

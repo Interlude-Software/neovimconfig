@@ -365,8 +365,11 @@ end
 --- Exposed for user/run.lua, which locates built executables under it — the
 --- preset resolution must not be duplicated, or the two would disagree about
 --- which directory (build/ vs build/<preset>/) is current.
-function M.binary_dir()
-  local root = M.project_root()
+---
+--- `root` may be passed explicitly: callers running from a floating window cannot
+--- rely on the current buffer to locate the project.
+function M.binary_dir(root)
+  root = root or M.project_root()
   if not root then
     return nil
   end

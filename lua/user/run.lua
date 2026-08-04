@@ -218,9 +218,9 @@ end
 --- Executables produced by the build, newest first. CMake projects normally put
 --- them in <binaryDir>/bin via CMAKE_RUNTIME_OUTPUT_DIRECTORY; the binary dir
 --- itself is checked too for projects that do not set it.
-local function built_executables()
+local function built_executables(root)
   local ok, build = pcall(require, "user.build")
-  local dir = ok and build.binary_dir()
+  local dir = ok and build.binary_dir(root)
   if not dir then
     return {}
   end
@@ -253,6 +253,68 @@ local function built_executables()
   end, found)
 end
 
+-- Directories under a build tree that only ever hold build machinery.
+local SKIP_SCAN = { CMakeFiles = true, [".cmake"] = true, Testing = true }
+
+local function scan_executables(dir, depth, out, seen)
+  local scan = uv.fs_scandir(dir)
+  if not scan then
+    return
+  end
+  while true do
+    local name, kind = uv.fs_scandir_next(scan)
+    if not name then
+      break
+    end
+    local path = dir .. "/" .. name
+    if kind == "directory" then
+      if depth > 0 and not SKIP_SCAN[name] then
+        scan_executables(path, depth - 1, out, seen)
+      end
+    elseif not seen[path] and is_executable_file(path) then
+      seen[path] = true
+      out[#out + 1] = { path = path, mtime = uv.fs_stat(path).mtime.sec, size = uv.fs_stat(path).size }
+    end
+  end
+end
+
+--- Every executable under the build tree, newest first — a wider net than
+--- built_executables(), which stays narrow because it feeds auto-detection and
+--- must not start picking up test harnesses or tools just because they are newer.
+--- This one only populates a picker, where more candidates is strictly better.
+local function all_executables(root)
+  local ok, build = pcall(require, "user.build")
+  local dir = ok and build.binary_dir(root)
+  if not dir then
+    return {}
+  end
+  local found, seen = {}, {}
+  scan_executables(dir, 2, found, seen)
+  table.sort(found, function(a, b)
+    return a.mtime > b.mtime
+  end)
+  return found
+end
+
+local function human_size(bytes)
+  if bytes >= 1024 * 1024 then
+    return string.format("%.1f MB", bytes / 1024 / 1024)
+  end
+  return string.format("%.0f KB", math.max(bytes / 1024, 1))
+end
+
+local function human_age(mtime)
+  local seconds = os.time() - mtime
+  if seconds < 90 then
+    return "just now"
+  elseif seconds < 3600 then
+    return string.format("%dm ago", math.floor(seconds / 60))
+  elseif seconds < 86400 then
+    return string.format("%dh ago", math.floor(seconds / 3600))
+  end
+  return os.date("%d %b", mtime)
+end
+
 --- Absolute path to the executable a profile should launch, or nil plus a reason.
 local function resolve_exe(profile, root)
   if profile.exe and profile.exe ~= "" then
@@ -266,7 +328,7 @@ local function resolve_exe(profile, root)
     return path
   end
 
-  local candidates = built_executables()
+  local candidates = built_executables(root)
   if #candidates == 0 then
     return nil, 'no built executable found — build first, or set "exe" in ' .. PROFILE_FILE
   end
@@ -309,7 +371,7 @@ local function split_args(args, options)
   return values, extra
 end
 
-local function build_fields(profile, options)
+local function build_fields(profile, options, root)
   local values, extra = split_args(profile.args, options)
 
   local fields = {
@@ -356,11 +418,28 @@ local function build_fields(profile, options)
     placeholder = "(none)",
   }
   fields[#fields + 1] = {
-    kind = "text",
+    kind = "choice",
     key = "exe",
     label = "Executable",
     value = profile.exe or "",
     placeholder = "(auto-detect newest)",
+    -- Evaluated when the field is opened, not when the form is built: a build
+    -- finishing while the form sits open should show up in the list.
+    values_fn = function()
+      local items = { { label = "(auto-detect newest built executable)", value = "" } }
+      for _, entry in ipairs(all_executables(root)) do
+        local shown = entry.path
+        if shown:sub(1, #root + 1) == root .. "/" then
+          shown = shown:sub(#root + 2)
+        end
+        items[#items + 1] = {
+          label = string.format("%s   %s, %s", shown, human_size(entry.size), human_age(entry.mtime)),
+          value = shown,
+        }
+      end
+      items[#items + 1] = { label = "Enter a path manually…", value = require("user.form").PROMPT }
+      return items
+    end,
   }
   fields[#fields + 1] = {
     kind = "text",
@@ -411,7 +490,7 @@ local function open_form(root, profile, index)
 
   form.open({
     title = index and ("Edit profile: " .. (profile.name or "")) or "New run profile",
-    fields = build_fields(profile, options),
+    fields = build_fields(profile, options, root),
     preview = function(state)
       local values = {}
       for _, field in ipairs(state.fields) do
@@ -420,7 +499,7 @@ local function open_form(root, profile, index)
         end
       end
       local args = args_from(values, options)
-      local exe = values.exe ~= "" and values.exe or vim.fs.basename(built_executables()[1] or "<exe>")
+      local exe = values.exe ~= "" and values.exe or vim.fs.basename(built_executables(root)[1] or "<exe>")
       return "→ " .. exe .. " " .. table.concat(args, " ")
     end,
     on_submit = function(values)

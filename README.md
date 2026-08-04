@@ -154,6 +154,17 @@ Profiles live in `.nvim-run.json` at the project root, so they are committed and
 
 Integer fields are checked on save, and a rejected save leaves the form open with your input intact.
 
+`<CR>` on **Executable** opens a picker of every executable found under the build tree, newest first, with size and age — no path typing:
+
+```
+  (auto-detect newest built executable)
+  build/macos/bin/zombiegame   17.2 MB, 4m ago
+  build/macos/bin/tools/packer  1.1 MB, 2h ago
+  Enter a path manually…
+```
+
+Paths are stored relative to the project root. The list is gathered when you open the field, so a build finishing while the form sits open shows up. It searches two levels under the build directory (skipping `CMakeFiles/`), which is wider than auto-detect looks — auto-detect stays narrow so it cannot start picking a test harness just because it is newer.
+
 ### The option schema
 
 The form is generated from an `options` array in the same file — **this is maintained by hand**, since nothing can interrogate an executable for its real flags. `<leader>bE` opens the raw JSON to edit it (and scaffolds a starter file if there is none).
