@@ -78,7 +78,7 @@ Attach: open a `.cs` file, set a breakpoint (`<leader>db`), press `<F5>`, pick t
 
 ## C / C++
 
-LSP (`clangd`) and debugging (`codelldb`) install via Mason on first launch. clangd resolves include paths from a `compile_commands.json`, `compile_flags.txt`, or `.clangd` in the project root — without one you'll see false errors on system headers. `<leader>bc` generates one for you (the configure step passes `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, and clangd finds it under `build/`); otherwise use `bear -- make`.
+LSP (`clangd`) and debugging (`codelldb`) install via Mason on first launch. clangd resolves include paths from a `compile_commands.json`, `compile_flags.txt`, or `.clangd` in the project root — without one you'll see false errors on system headers. `<leader>bc` generates one for you (the configure step passes `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, and clangd finds it under `build/`); otherwise use `bear -- make`. Note that preset-driven projects write it to the preset's binary dir (e.g. `build/macos/`), which clangd does *not* search — symlink it to the project root, or point at it from `.clangd`.
 
 Debug: open a `.c`/`.cpp` file, set a breakpoint (`<leader>db`), press `<F5>`. The C/C++ launch ("Launch C/C++ executable") and attach configs are listed first when the current buffer is native code.
 
@@ -86,7 +86,13 @@ Debug: open a `.c`/`.cpp` file, set a breakpoint (`<leader>db`), press `<F5>`. T
 
 `<leader>bb` builds the project containing the current buffer, asynchronously and in the background — no separate terminal window. Output is parsed with `errorformat` into the quickfix list and, when the build fails, Trouble opens with the diagnostics; `<CR>` jumps to an error, `]q` / `[q` step through them. The statusline shows a spinner while building and `✗ 3 E 0 W` or `✓ proj 1.4s` when it settles.
 
-The project is found by walking up from the current file: a `CMakeLists.txt` means `cmake --build`, falling back to `make`. CMake builds configure themselves on first use, into the first of `build/`, `out/build/`, `cmake-build-debug/`, `cmake-build-release/` that already holds a `CMakeCache.txt` (creating `build/` if none do). Starting a build while one is running replaces it, so you can just keep hitting `<leader>bb`.
+The project is found by walking up from the current file: a `CMakeLists.txt` means `cmake --build`, falling back to `make`. Starting a build while one is running replaces it, so you can just keep hitting `<leader>bb`.
+
+**Projects with `CMakePresets.json` are driven through their presets** — `cmake --build --preset <name>`, and `cmake --preset <name>` to configure. This matters for anything using vcpkg or a custom toolchain: the preset carries the toolchain file and the real binary dir (often `build/<presetName>`, not `build/`). Configuring such a project by hand writes a toolchain-less cache into `build/` that then *looks* configured. `cmake` itself decides which presets are valid on this host, so a Linux-or-Windows-only preset is never offered.
+
+`<leader>bp` picks the preset when a project defines more than one; the choice persists per project in `stdpath("cache")/nvim_build_preset.json`. Without a choice, the first preset cmake reports is used, and `vim.g.build_preset` overrides everything.
+
+Projects with no presets configure themselves on first use into the first of `build/`, `out/build/`, `cmake-build-debug/`, `cmake-build-release/` that already holds a `CMakeCache.txt` (creating `build/` if none do).
 
 Link errors, missing tools, and CMake failures that no `errorformat` pattern captures still show up — the notification points you at `<leader>bo`, which dumps the raw output in a split.
 
@@ -99,6 +105,7 @@ To override detection entirely, set `vim.g.build_command` (a string run through 
 | `<leader>bB` | Clean rebuild |
 | `<leader>bc` | CMake configure + build |
 | `<leader>bC` | CMake configure only |
+| `<leader>bp` | Pick the CMake preset for this project |
 | `<leader>bo` | Raw output of the last build |
 | `<leader>bx` | Cancel the running build |
 | `]q` / `[q` | Next / previous quickfix entry |
@@ -145,6 +152,7 @@ Leader: `<Space>`
 | Key | Action |
 |---|---|
 | `<leader>bb` | Build current project |
+| `<leader>bp` | Pick CMake preset |
 | `<leader>bo` | Raw build output |
 | `<leader>bx` | Cancel build |
 | `]q` / `[q` | Next / previous quickfix entry |

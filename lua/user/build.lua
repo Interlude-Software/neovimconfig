@@ -17,8 +17,8 @@ local SPINNER = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇",
 local OUTPUT_BUF_NAME = "build://output"
 
 -- Build directories probed under the CMake source root, in order. The first one
--- holding a CMakeCache.txt wins; failing that, the first that exists at all;
--- failing that, "build" is created by the configure step.
+-- that is actually configured wins (see is_configured); failing that, the first
+-- that exists at all; failing that, "build" is created by the configure step.
 local BUILD_DIRS = { "build", "out/build", "cmake-build-debug", "cmake-build-release" }
 
 local state = {
@@ -31,6 +31,7 @@ local state = {
   warnings = 0,
   output = {}, -- raw stdout+stderr of the whole run
   label = "", -- short name shown in the statusline
+  preset = nil, -- cmake preset in use, if any
   last = nil, -- steps of the last run, for a verbatim re-run
   start = 0,
   elapsed = 0,
@@ -163,12 +164,29 @@ local function is_dir(path)
   return st ~= nil and st.type == "directory"
 end
 
+--- A CMakeCache.txt alone does NOT mean the directory is usable: cmake writes the
+--- cache before it can fail (an unresolved find_package, say), leaving a dir that
+--- looks configured but has no generated build system. Requiring the generator's
+--- output too means a failed configure is retried instead of building nothing.
+local function is_configured(dir)
+  if not dir or not uv.fs_stat(dir .. "/CMakeCache.txt") then
+    return false
+  end
+  for _, generated in ipairs({ "Makefile", "build.ninja", "CMakeFiles/rules.ninja" }) do
+    if uv.fs_stat(dir .. "/" .. generated) then
+      return true
+    end
+  end
+  -- IDE generators (Xcode, Visual Studio) emit a project file instead
+  return #vim.fn.glob(dir .. "/*.xcodeproj", false, true) > 0 or #vim.fn.glob(dir .. "/*.sln", false, true) > 0
+end
+
 local function cmake_build_dir(root)
   local names = vim.g.build_dirs or BUILD_DIRS
   local existing
   for _, name in ipairs(names) do
     local dir = root .. "/" .. name
-    if uv.fs_stat(dir .. "/CMakeCache.txt") then
+    if is_configured(dir) then
       return dir, true
     end
     if not existing and is_dir(dir) then
@@ -184,6 +202,157 @@ local function jobs()
   end
   local ok, cpus = pcall(uv.cpu_info)
   return (ok and cpus and #cpus > 0) and #cpus or 4
+end
+
+--------------------------------------------------------------- cmake presets --
+
+-- A project with CMakePresets.json must be driven through its presets: the
+-- preset carries the toolchain file (vcpkg, for instance) and the real binary
+-- dir, which is typically build/<presetName> rather than build/. Configuring
+-- such a project by hand leaves a toolchain-less cache in build/ that then
+-- looks configured to a naive probe.
+
+local PRESET_STATE = vim.fn.stdpath("cache") .. "/nvim_build_preset.json"
+
+local preset_cache = {} -- root -> parsed presets, invalidated on file mtime
+
+local function read_json(path)
+  local fd = io.open(path, "r")
+  if not fd then
+    return nil
+  end
+  local content = fd:read("*a")
+  fd:close()
+  local ok, data = pcall(vim.json.decode, content)
+  return ok and data or nil
+end
+
+--- Preset names cmake itself reports for `kind`. Delegating to cmake means the
+--- `condition` fields (host OS gates) are evaluated by cmake, not reimplemented.
+local function list_presets(root, kind)
+  local cmd = { "cmake", "--list-presets" }
+  if kind then
+    cmd[2] = "--list-presets=" .. kind
+  end
+  local res = vim.system(cmd, { cwd = root, text = true }):wait()
+  local names = {}
+  if res.code == 0 then
+    for line in (res.stdout or ""):gmatch("[^\n]+") do
+      local name = line:match('^%s*"([^"]+)"')
+      if name then
+        names[#names + 1] = name
+      end
+    end
+  end
+  return names
+end
+
+--- binaryDir is inherited, and expands ${sourceDir} / ${presetName} — the latter
+--- against the preset being built, not the ancestor that declared the field.
+local function preset_binary_dir(defs, name, root)
+  local seen, cur = {}, name
+  while cur and not seen[cur] do
+    seen[cur] = true
+    local def = defs[cur]
+    if not def then
+      return nil
+    end
+    if def.binaryDir then
+      local dir = def.binaryDir:gsub("%${sourceDir}", root):gsub("%${presetName}", name)
+      return dir
+    end
+    local inherits = def.inherits
+    cur = type(inherits) == "table" and inherits[1] or inherits
+  end
+  return nil
+end
+
+--- nil when the project has no presets, or none usable on this host.
+local function load_presets(root)
+  local files = { root .. "/CMakePresets.json", root .. "/CMakeUserPresets.json" }
+  local mtime = 0
+  for _, path in ipairs(files) do
+    local st = uv.fs_stat(path)
+    if st then
+      mtime = math.max(mtime, st.mtime.sec)
+    end
+  end
+  if mtime == 0 then
+    return nil
+  end
+
+  local cached = preset_cache[root]
+  if cached and cached.mtime == mtime then
+    return cached.presets
+  end
+
+  local configure = list_presets(root, nil)
+  if #configure == 0 then
+    preset_cache[root] = { mtime = mtime, presets = nil }
+    return nil
+  end
+
+  local defs = {}
+  for _, path in ipairs(files) do
+    local data = read_json(path)
+    for _, def in ipairs(data and data.configurePresets or {}) do
+      if def.name then
+        defs[def.name] = def
+      end
+    end
+  end
+
+  local buildable = {}
+  for _, name in ipairs(list_presets(root, "build")) do
+    buildable[name] = true
+  end
+
+  local binary = {}
+  for _, name in ipairs(configure) do
+    binary[name] = preset_binary_dir(defs, name, root)
+  end
+
+  local presets = { configure = configure, buildable = buildable, binary = binary }
+  preset_cache[root] = { mtime = mtime, presets = presets }
+  return presets
+end
+
+local function saved_presets()
+  return read_json(PRESET_STATE) or {}
+end
+
+--- Which preset to use: an explicit override, else the last one chosen for this
+--- project, else the first cmake reports as valid here.
+local function pick_preset(root, presets)
+  if vim.g.build_preset then
+    return vim.g.build_preset
+  end
+  local saved = saved_presets()[root]
+  if saved and vim.tbl_contains(presets.configure, saved) then
+    return saved
+  end
+  return presets.configure[1]
+end
+
+function M.choose_preset()
+  local cmakelists = find_up("CMakeLists.txt")
+  local root = cmakelists and vim.fs.dirname(cmakelists)
+  local presets = root and load_presets(root)
+  if not presets then
+    vim.notify("no usable CMake presets for this project", vim.log.levels.WARN)
+    return
+  end
+
+  vim.ui.select(presets.configure, { prompt = "CMake preset:" }, function(choice)
+    if not choice then
+      return
+    end
+    local saved = saved_presets()
+    saved[root] = choice
+    vim.fn.writefile({ vim.json.encode(saved) }, PRESET_STATE)
+    vim.g.build_preset = nil -- the saved choice would otherwise be shadowed
+    vim.notify("build preset: " .. choice)
+  end)
 end
 
 --- Resolve the steps needed to build whatever project the current buffer is in.
@@ -205,8 +374,39 @@ local function resolve(opts)
   local cmakelists = find_up("CMakeLists.txt")
   if cmakelists then
     local root = vim.fs.dirname(cmakelists)
-    local dir, configured = cmake_build_dir(root)
     local steps = {}
+
+    -- Presets win when present: they hold the toolchain file and the real binary
+    -- dir. Probing for build/CMakeCache.txt here would happily find a stale
+    -- toolchain-less cache and build the project wrong.
+    local presets = load_presets(root)
+    if presets then
+      local preset = pick_preset(root, presets)
+      local dir = presets.binary[preset]
+
+      if (dir and not is_configured(dir)) or opts.configure then
+        steps[#steps + 1] = { cmd = { "cmake", "--preset", preset }, cwd = root }
+      end
+
+      if not opts.configure_only then
+        local cmd
+        if presets.buildable[preset] then
+          cmd = { "cmake", "--build", "--preset", preset }
+        else
+          -- configure preset with no matching build preset: drive the dir itself
+          cmd = { "cmake", "--build", dir or (root .. "/build") }
+        end
+        vim.list_extend(cmd, { "--parallel", tostring(jobs()) })
+        if opts.clean then
+          table.insert(cmd, "--clean-first")
+        end
+        steps[#steps + 1] = { cmd = cmd, cwd = root }
+      end
+
+      return steps, vim.fs.basename(root), preset
+    end
+
+    local dir, configured = cmake_build_dir(root)
 
     -- Configure when there is no cache yet, or on an explicit request. Export
     -- compile_commands.json while we are here: clangd picks it up from build/.
@@ -278,6 +478,9 @@ local function finish(code)
   stop_ticking()
 
   local title = "build: " .. state.label
+  if state.preset then
+    title = title .. " (" .. state.preset .. ")"
+  end
 
   vim.fn.setqflist({}, " ", { title = title, lines = state.output, efm = errorformat() })
 
@@ -351,7 +554,7 @@ local function run_step(step)
         -- A new build was requested while this one was being killed.
         local queued = state.pending
         state.pending = nil
-        run_steps(queued.steps, queued.label)
+        run_steps(queued.steps, queued.label, queued.preset)
         return
       end
 
@@ -365,14 +568,15 @@ local function run_step(step)
   end)
 end
 
-run_steps = function(steps, label)
+run_steps = function(steps, label, preset)
   state.queue = vim.list_slice(steps, 2)
   state.output = {}
   state.label = label
+  state.preset = preset
   state.status = "running"
   state.cancelled = false
   state.errors, state.warnings = 0, 0
-  state.last = { steps = steps, label = label }
+  state.last = { steps = steps, label = label, preset = preset }
   start_ticking()
   run_step(steps[1])
 end
@@ -381,19 +585,19 @@ end
 --- A build already in flight is killed and replaced — saving and rebuilding in a
 --- tight loop should not require cancelling by hand.
 function M.run(opts)
-  local steps, label = resolve(opts)
+  local steps, label, preset = resolve(opts)
   if not steps then
     vim.notify(label, vim.log.levels.WARN)
     return
   end
 
   if state.job then
-    state.pending = { steps = steps, label = label }
+    state.pending = { steps = steps, label = label, preset = preset }
     state.job:kill(15)
     return
   end
 
-  run_steps(steps, label)
+  run_steps(steps, label, preset)
 end
 
 --- Re-run the previous build verbatim, ignoring which buffer is current.
@@ -407,7 +611,7 @@ function M.again()
     state.job:kill(15)
     return
   end
-  run_steps(state.last.steps, state.last.label)
+  run_steps(state.last.steps, state.last.label, state.last.preset)
 end
 
 function M.cancel()
@@ -483,6 +687,7 @@ function M.setup()
   end, "CMake configure only")
   map("<leader>bo", M.output, "Build output")
   map("<leader>bx", M.cancel, "Cancel build")
+  map("<leader>bp", M.choose_preset, "Pick CMake preset")
 
   vim.api.nvim_create_user_command("Build", function(cmd)
     M.run({ clean = cmd.bang })
