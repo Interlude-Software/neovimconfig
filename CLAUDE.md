@@ -10,6 +10,7 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
 
 - `init.lua` — sets `<Space>` as leader **before** anything else (keymaps depend on it), bootstraps lazy.nvim, applies core `vim.opt` settings, then `require("lazy").setup("plugins")`.
 - `lua/plugins/*.lua` — lazy.nvim auto-imports every file in this directory. **Each file returns a single plugin spec table** (one plugin per file). Adding a plugin = adding a new file here; no central registry to update.
+- `lua/user/*.lua` — non-plugin modules, wired up by hand from `init.lua` (they cannot live in `lua/plugins/`, which lazy would try to read as specs). Currently just `build.lua`.
 - `lazy-lock.json` — pinned plugin commits (committed; this is the lockfile).
 - `lazygit/config.yml` — source of truth for the lazygit config, symlinked into place per the README (not auto-loaded by Neovim).
 
@@ -29,6 +30,7 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
 ### C / C++ stack
 
 - **LSP**: `clangd`, configured in `lspconfig.lua` (which owns `nvim-lspconfig`). Lazy-loaded on `ft = { c, cpp, objc, objcpp, cuda }`; the `on_attach` keymaps mirror `roslyn.lua` exactly. Install via Mason: `:MasonInstall clangd`. clangd reads `compile_commands.json` (or `.clangd`/`compile_flags.txt`) from the project root for include paths.
+- **Building**: `lua/user/build.lua` — async `cmake --build` / `make` via `vim.system`, output parsed into the quickfix list with a custom `errorformat` (appended to the built-in one) and surfaced through Trouble. Keymaps are under `<leader>b`, registered by `M.setup()` from `init.lua`; the statusline component is consumed by `lualine.lua`. Two details are load-bearing: output is line-buffered per stream (chunks split mid-line would parse as bogus entries), and `valid == 0` entries are filtered out after parsing (unmatched build chatter would otherwise fill the list). Multi-line linker/CMake messages are folded with `%+C` and flattened to one line.
 - **Debugging**: `codelldb` (Mason) adapter in `dap.lua`. `build_configs()` adds "Launch C/C++ executable" and "Attach to process (C/C++)" entries, surfaced first when the current buffer's filetype is `c`/`cpp` and appended otherwise. Install via Mason: `:MasonInstall codelldb`.
 
 ### treesitter note

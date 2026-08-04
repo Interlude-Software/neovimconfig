@@ -78,9 +78,30 @@ Attach: open a `.cs` file, set a breakpoint (`<leader>db`), press `<F5>`, pick t
 
 ## C / C++
 
-LSP (`clangd`) and debugging (`codelldb`) install via Mason on first launch. clangd resolves include paths from a `compile_commands.json`, `compile_flags.txt`, or `.clangd` in the project root — without one you'll see false errors on system headers. Generate it with CMake (`-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`) or `bear -- make`.
+LSP (`clangd`) and debugging (`codelldb`) install via Mason on first launch. clangd resolves include paths from a `compile_commands.json`, `compile_flags.txt`, or `.clangd` in the project root — without one you'll see false errors on system headers. `<leader>bc` generates one for you (the configure step passes `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`, and clangd finds it under `build/`); otherwise use `bear -- make`.
 
 Debug: open a `.c`/`.cpp` file, set a breakpoint (`<leader>db`), press `<F5>`. The C/C++ launch ("Launch C/C++ executable") and attach configs are listed first when the current buffer is native code.
+
+## Building
+
+`<leader>bb` builds the project containing the current buffer, asynchronously and in the background — no separate terminal window. Output is parsed with `errorformat` into the quickfix list and, when the build fails, Trouble opens with the diagnostics; `<CR>` jumps to an error, `]q` / `[q` step through them. The statusline shows a spinner while building and `✗ 3 E 0 W` or `✓ proj 1.4s` when it settles.
+
+The project is found by walking up from the current file: a `CMakeLists.txt` means `cmake --build`, falling back to `make`. CMake builds configure themselves on first use, into the first of `build/`, `out/build/`, `cmake-build-debug/`, `cmake-build-release/` that already holds a `CMakeCache.txt` (creating `build/` if none do). Starting a build while one is running replaces it, so you can just keep hitting `<leader>bb`.
+
+Link errors, missing tools, and CMake failures that no `errorformat` pattern captures still show up — the notification points you at `<leader>bo`, which dumps the raw output in a split.
+
+To override detection entirely, set `vim.g.build_command` (a string run through the shell, or an argv list) plus optionally `vim.g.build_cwd`. `vim.g.build_jobs` sets parallelism (defaults to the CPU count) and `vim.g.build_dirs` replaces the build-directory candidates.
+
+| Key | Action |
+|---|---|
+| `<leader>bb` | Build |
+| `<leader>br` | Re-run last build (ignores current buffer) |
+| `<leader>bB` | Clean rebuild |
+| `<leader>bc` | CMake configure + build |
+| `<leader>bC` | CMake configure only |
+| `<leader>bo` | Raw output of the last build |
+| `<leader>bx` | Cancel the running build |
+| `]q` / `[q` | Next / previous quickfix entry |
 
 ## Keymaps
 
@@ -119,6 +140,14 @@ Leader: `<Space>`
 | `<F11>` | Step into |
 | `<F12>` | Step out |
 | `<leader>du` | Toggle UI |
+
+### Build (see [Building](#building))
+| Key | Action |
+|---|---|
+| `<leader>bb` | Build current project |
+| `<leader>bo` | Raw build output |
+| `<leader>bx` | Cancel build |
+| `]q` / `[q` | Next / previous quickfix entry |
 
 ### Misc
 | Key | Action |

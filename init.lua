@@ -51,7 +51,27 @@ vim.opt.shortmess:append("A")  -- skip the swap-file ATTENTION prompt (crashes L
 
 require("lazy").setup("plugins")
 
+-- Async builds into the quickfix list (<leader>b...); not a plugin spec, so it
+-- lives outside lua/plugins/ and is wired up by hand.
+require("user.build").setup()
+
 vim.keymap.set('n', ']w', function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN }) end)
 vim.keymap.set('n', '[w', function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.WARN }) end)
 vim.keymap.set('n', ']e', function() vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.ERROR }) end)
 vim.keymap.set('n', '[e', function() vim.diagnostic.goto_prev({ severity = vim.diagnostic.severity.ERROR }) end)
+
+-- Step through the quickfix list (build errors), wrapping around at either end
+local function qf_step(forward)
+  return function()
+    if vim.tbl_isempty(vim.fn.getqflist()) then
+      vim.notify('quickfix list is empty', vim.log.levels.INFO)
+      return
+    end
+    -- cnext/cprevious error out at the ends instead of wrapping
+    if not pcall(vim.cmd, forward and 'cnext' or 'cprevious') then
+      vim.cmd(forward and 'cfirst' or 'clast')
+    end
+  end
+end
+vim.keymap.set('n', ']q', qf_step(true), { desc = 'Next quickfix' })
+vim.keymap.set('n', '[q', qf_step(false), { desc = 'Prev quickfix' })
