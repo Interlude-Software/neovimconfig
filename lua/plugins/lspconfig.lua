@@ -12,7 +12,7 @@ return {
       vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
       vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
       vim.keymap.set("n", "<leader>rn", function()
-        vim.ui.input({ prompt = "New Name: ", default = "" }, function(new_name)
+        vim.ui.input({ prompt = "New Name: ", default = vim.fn.expand("<cword>") }, function(new_name)
           if new_name and new_name ~= "" then
             vim.lsp.buf.rename(new_name)
           end
