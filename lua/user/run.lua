@@ -831,7 +831,7 @@ local function line_sink(inst)
   end
 end
 
-local function launch(profile, root)
+local function launch(profile, root, focus)
   local exe, err = resolve_exe(profile, root)
   if not exe then
     vim.notify(err, vim.log.levels.ERROR)
@@ -859,7 +859,7 @@ local function launch(profile, root)
   runs[inst.id] = inst
 
   setup_buffer(inst)
-  open_window(inst, false)
+  open_window(inst, focus)
 
   local cwd = profile.cwd
   if cwd and not cwd:match("^/") then
@@ -944,7 +944,9 @@ function M.pick()
 
   vim.ui.select(items, { prompt = "Run profile:" }, function(_, idx)
     if idx then
-      launch(profiles[idx], root)
+      -- Land in the log window immediately — <leader>bg to jump there
+      -- afterward is redundant right after an interactive pick.
+      launch(profiles[idx], root, true)
     end
   end)
 end
@@ -956,7 +958,7 @@ function M.again()
   if #profiles == 0 then
     return M.pick()
   end
-  launch(profiles[1], root)
+  launch(profiles[1], root, true)
 end
 
 function M.new_profile()
