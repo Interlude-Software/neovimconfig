@@ -13,7 +13,7 @@
   "lazyLOC": { "branch": "main", "commit": "31087ccf185b8f57af5121bb0ddb7173abedeba1" },
   "lazydev.nvim": { "branch": "main", "commit": "ff2cbcba459b637ec3fd165a2be59b7bbaeedf0d" },
   "lazygit.nvim": { "branch": "main", "commit": "a04ad0dbc725134edbee3a5eea29290976695357" },
-  "lazyissues": { "branch": "main", "commit": "e330b082b75af4d95af8270e20e864e80c430625" },
+  "lazyissues": { "branch": "main", "commit": "b3ddd1f78a1425b5d32ed8bdc4ea5fc685da07a7" },
   "lsp_signature.nvim": { "branch": "master", "commit": "b7ace9ddb1640ce266012a45a672dfdaedfa5ec6" },
   "lualine.nvim": { "branch": "master", "commit": "221ce6b2d999187044529f49da6554a92f740a96" },
   "markview.nvim": { "branch": "main", "commit": "2471f4097f8561a6880a0fe05ee0f21cbc82b374" },
