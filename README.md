@@ -218,6 +218,7 @@ Following is automatic: scrolling back pauses tailing, returning to the last lin
 | Key | Action |
 |---|---|
 | `<leader>br` | Pick and launch a run profile |
+| `<leader>bP` | Pick and launch a run profile under `samply record` |
 | `<leader>bR` | Re-launch the most recent profile |
 | `<leader>bn` | New run profile (form) |
 | `<leader>be` | Edit a run profile (form) |
@@ -226,7 +227,7 @@ Following is automatic: scrolling back pauses tailing, returning to the last lin
 | `<leader>bk` | Stop a run (or all) |
 | `<leader>bf` | Scan the source for flags missing from the schema |
 
-`:Run` with no argument is the picker; `:Run <name>` launches a profile directly and tab-completes.
+`:Run` with no argument is the picker; `:Run <name>` launches a profile directly and tab-completes. `:Run!` (or `<leader>bP`) records the run with [samply](https://github.com/mstange/samply) (`brew install samply`) and opens the Firefox Profiler UI when the game exits — **quit the game normally** rather than killing it. Signalling samply mid-recording loses the capture, so `<leader>bk` on a profiled run stops the *game* and lets samply finish; a second `<leader>bk` closes samply's profile server. Profile a `RelWithDebInfo`/`Release` build if you care about the numbers.
 
 ## Keymaps
 

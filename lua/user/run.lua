@@ -831,7 +831,8 @@ local function line_sink(inst)
   end
 end
 
-local function launch(profile, root, focus)
+local function launch(profile, root, opts)
+  opts = opts or {}
   local exe, err = resolve_exe(profile, root)
   if not exe then
     vim.notify(err, vim.log.levels.ERROR)
@@ -840,12 +841,21 @@ local function launch(profile, root, focus)
 
   local cmd = { exe }
   vim.list_extend(cmd, profile.args or {})
+  if opts.profiler then
+    if vim.fn.executable("samply") ~= 1 then
+      vim.notify("samply not on PATH — install with `brew install samply`", vim.log.levels.ERROR)
+      return
+    end
+    cmd = vim.list_extend({ "samply", "record", "--" }, cmd)
+  end
 
   local inst = {
     id = next_id,
     name = profile.name or vim.fs.basename(exe),
     profile = profile,
     root = root,
+    exe = exe,
+    profiler = opts.profiler,
     lines = {},
     pending = {},
     errors = 0,
@@ -859,7 +869,7 @@ local function launch(profile, root, focus)
   runs[inst.id] = inst
 
   setup_buffer(inst)
-  open_window(inst, focus)
+  open_window(inst, opts.focus)
 
   local cwd = profile.cwd
   if cwd and not cwd:match("^/") then
@@ -910,7 +920,9 @@ local function launch(profile, root, focus)
   )
 
   touch_recent(root, inst.name)
-  vim.notify("running " .. inst.name .. ": " .. table.concat(cmd, " ", 2))
+  local args_shown = table.concat(profile.args or {}, " ")
+  local how = inst.profiler and " under samply" or ""
+  vim.notify("running " .. inst.name .. how .. (args_shown == "" and "" or ": " .. args_shown))
   return inst
 end
 
@@ -928,7 +940,9 @@ local function active()
 end
 
 --- Pick a profile and launch it. With no profiles yet, offers to create one.
-function M.pick()
+--- opts.profiler runs it under `samply record`; the Firefox Profiler UI opens
+--- when the game exits (quit it normally — see M.stop for why not to kill it).
+function M.pick(opts)
   local root = project_root()
   local profiles = sorted_profiles(root)
   if #profiles == 0 then
@@ -942,11 +956,11 @@ function M.pick()
     return args ~= "" and (p.name .. "  —  " .. args) or p.name
   end, profiles)
 
-  vim.ui.select(items, { prompt = "Run profile:" }, function(_, idx)
+  vim.ui.select(items, { prompt = opts and opts.profiler and "Profile run:" or "Run profile:" }, function(_, idx)
     if idx then
       -- Land in the log window immediately — <leader>bg to jump there
       -- afterward is redundant right after an interactive pick.
-      launch(profiles[idx], root, true)
+      launch(profiles[idx], root, vim.tbl_extend("keep", { focus = true }, opts or {}))
     end
   end)
 end
@@ -958,7 +972,7 @@ function M.again()
   if #profiles == 0 then
     return M.pick()
   end
-  launch(profiles[1], root, true)
+  launch(profiles[1], root, { focus = true })
 end
 
 function M.new_profile()
@@ -1200,11 +1214,22 @@ end
 
 function M.stop(id)
   local inst = runs[id]
-  if inst and inst.job then
-    inst.job:kill(15)
-    return true
+  if not (inst and inst.job) then
+    return false
   end
-  return false
+  if inst.profiler then
+    -- Signaling samply itself mid-recording kills it without writing the
+    -- profile (observed: SIGINT → exit 1, no output). Stop the game instead;
+    -- samply then winds down and serves the capture. Once the game is gone the
+    -- job that's left is samply's server phase, which is safe to kill.
+    local res = vim.system({ "pkill", "-INT", "-f", inst.exe }):wait()
+    if res.code == 0 then
+      vim.notify("stopping profiled run — samply will open the capture; stop again to close it")
+      return true
+    end
+  end
+  inst.job:kill(15)
+  return true
 end
 
 --- Stop a running instance, or all of them when several are live.
@@ -1289,6 +1314,10 @@ function M.setup()
   end
 
   map("<leader>br", M.pick, "Run profile")
+  -- <leader>bp is taken twice over (choose_preset in build.lua, pin in bufferline.lua)
+  map("<leader>bP", function()
+    M.pick({ profiler = true })
+  end, "Profile a run under samply")
   map("<leader>bR", M.again, "Re-run last profile")
   map("<leader>bn", M.new_profile, "New run profile")
   map("<leader>be", M.edit_profile, "Edit run profile (form)")
@@ -1304,21 +1333,23 @@ function M.setup()
   end, { bang = true, desc = "Diff the option schema against --flags in the source (! to add missing)" })
 
   vim.api.nvim_create_user_command("Run", function(cmd)
+    local opts = cmd.bang and { profiler = true } or nil
     if cmd.args == "" then
-      M.pick()
+      M.pick(opts)
       return
     end
     local root = project_root()
     for _, p in ipairs(load_profiles(root)) do
       if p.name == cmd.args then
-        launch(p, root)
+        launch(p, root, opts)
         return
       end
     end
     vim.notify("no profile named " .. cmd.args, vim.log.levels.ERROR)
   end, {
     nargs = "?",
-    desc = "Launch a run profile",
+    bang = true,
+    desc = "Launch a run profile (! to record under samply)",
     complete = function()
       return vim.tbl_map(function(p)
         return p.name
