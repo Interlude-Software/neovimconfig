@@ -557,8 +557,13 @@ local function finish(code)
 
   if code == 0 then
     state.status = "ok"
-    -- A clean build should not leave the previous run's list on screen.
-    pcall(vim.cmd, "Trouble qflist close")
+    -- Warnings still deserve the list; a clean build should not leave the
+    -- previous run's entries on screen.
+    if #items > 0 then
+      pcall(vim.cmd, "Trouble qflist open focus=false")
+    else
+      pcall(vim.cmd, "Trouble qflist close")
+    end
     local msg = string.format("build ok (%.1fs)", state.elapsed)
     if state.warnings > 0 then
       msg = msg .. string.format(" — %d warning%s", state.warnings, state.warnings == 1 and "" or "s")
