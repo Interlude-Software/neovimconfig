@@ -519,6 +519,47 @@ local function line_sink()
   end
 end
 
+--- Undo an interleaved write. A parallel build gives every compiler process the
+--- same stderr pipe, so one process can land a chunk mid-line and glue, say, a
+--- source-snippet line onto the front of another process's diagnostic.
+--- errorformat matching is a search rather than an anchored match, so the line
+--- still parses — but %f swallows the garbage prefix and the entry points at a
+--- path that does not exist, which is what makes Trouble throw "Invalid cursor
+--- line" on jump. Returns the two halves, or nil when the line is intact.
+---
+--- The split point cannot be found by pattern alone — the weld lands on an
+--- ordinary path character ("..._" + "/Users/..."), and every '/' further along
+--- the path looks just like it. So the filesystem arbitrates: cut at the first
+--- '/' whose tail is a file that exists. A line whose path already starts at
+--- column 1 never matches, because the cut has to leave something behind.
+local function unsplice(line)
+  local init = 1
+  while true do
+    local at = line:find(":%d+:%d+:", init)
+    if not at then
+      return nil
+    end
+    -- Walk the '/'s left to right; the earliest readable tail is the real
+    -- filename, since a weld can only ever add characters in front of it.
+    local head, from = line:sub(1, at - 1), 2
+    while true do
+      local slash = head:find("/", from, true)
+      if not slash then
+        break
+      end
+      -- "In file included from /path/a.h:1:0:" (and gcc's "    from" follow-ons)
+      -- legitimately carry the path mid-line, and the built-in errorformat
+      -- already reads them; splitting one produces a junk entry.
+      local prefix = line:sub(1, slash - 1)
+      if vim.fn.filereadable(head:sub(slash)) == 1 and not prefix:match("from%s+$") then
+        return prefix, line:sub(slash)
+      end
+      from = slash + 1
+    end
+    init = at + 1 -- two welds in one line: try the next file:line:col
+  end
+end
+
 --- Parse the accumulated output into quickfix and surface the result.
 local function finish(code)
   stop_ticking()
@@ -528,7 +569,18 @@ local function finish(code)
     title = title .. " (" .. state.preset .. ")"
   end
 
-  vim.fn.setqflist({}, " ", { title = title, lines = state.output, efm = errorformat() })
+  local lines = {}
+  for _, line in ipairs(state.output) do
+    local head, tail = unsplice(line)
+    while head do
+      lines[#lines + 1] = head
+      line = tail
+      head, tail = unsplice(line)
+    end
+    lines[#lines + 1] = line
+  end
+
+  vim.fn.setqflist({}, " ", { title = title, lines = lines, efm = errorformat() })
 
   -- Lines matching no pattern still land in the list as valid=0 entries: compile
   -- progress, caret context, make's "*** Error 1" trailers. Drop them so the
