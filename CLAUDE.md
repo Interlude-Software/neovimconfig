@@ -18,7 +18,7 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
 
 - LSP keymaps and capabilities are attached in each LSP plugin's `on_attach` (see `roslyn.lua`), not globally.
 - Lazy-loading is deliberate: specs use `ft = "cs"`, `event = ...`, `cmd = ...`, or `keys = ...`. Preserve these triggers when editing — loading eagerly will slow startup and can break load order.
-- Unity/.NET junk directories (`Library`, `Temp`, `Logs`, `obj`, `bin`, `UserSettings`, `CodeCoverage`) are filtered in **three independent places** that must be kept in sync: `telescope.lua` (`file_ignore_patterns`, `find_files` fd args, and `live_grep` ripgrep globs) and `neo-tree.lua` (`hide_by_name`).
+- Unity/.NET junk directories (`Library`, `Temp`, `Logs`, `obj`, `bin`, `UserSettings`, `CodeCoverage`) are filtered in **three independent places** that must be kept in sync: `telescope.lua` (`file_ignore_patterns`, `find_files` fd args, and the `rg_excludes` ripgrep globs shared by `live_grep`/`grep_string`) and `neo-tree.lua` (`hide_by_name`).
 
 ### C# / Unity stack (the core of this config)
 

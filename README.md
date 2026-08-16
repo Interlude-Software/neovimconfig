@@ -238,6 +238,7 @@ Leader: `<Space>`
 |---|---|
 | `<C-p>` / `<leader>ff` | Find files |
 | `<leader>fg` | Live grep |
+| `<leader>fw` | Grep the word under the cursor (or the visual selection) |
 | `<leader>fb` | Buffers |
 | `<leader>fh` | Help tags |
 | `<leader>fc` | Live grep C# only |

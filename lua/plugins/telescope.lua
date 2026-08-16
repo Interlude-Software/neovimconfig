@@ -22,6 +22,34 @@ return {
       return patterns
     end
 
+    -- ripgrep args shared by live_grep and grep_string; these pickers don't
+    -- read find_files' fd excludes, so the junk-directory list repeats here.
+    local function rg_excludes()
+      local args = {
+        "--no-ignore",
+        "--glob",
+        "!Library/",
+        "--glob",
+        "!Temp/",
+        "--glob",
+        "!Logs/",
+        "--glob",
+        "!obj/",
+        "--glob",
+        "!bin/",
+        "--glob",
+        "!.git/",
+        "--glob",
+        "!UserSettings/",
+        "--glob",
+        "!CodeCoverage/",
+      }
+      for _, pattern in ipairs(extra_excludes()) do
+        vim.list_extend(args, { "--glob", "!" .. pattern })
+      end
+      return args
+    end
+
     require("telescope").setup({
       defaults = {
         preview = { treesitter = false },
@@ -91,31 +119,10 @@ return {
           end,
         },
         live_grep = {
-          additional_args = function()
-            local args = {
-              "--no-ignore",
-              "--glob",
-              "!Library/",
-              "--glob",
-              "!Temp/",
-              "--glob",
-              "!Logs/",
-              "--glob",
-              "!obj/",
-              "--glob",
-              "!bin/",
-              "--glob",
-              "!.git/",
-              "--glob",
-              "!UserSettings/",
-              "--glob",
-              "!CodeCoverage/",
-            }
-            for _, pattern in ipairs(extra_excludes()) do
-              vim.list_extend(args, { "--glob", "!" .. pattern })
-            end
-            return args
-          end,
+          additional_args = rg_excludes,
+        },
+        grep_string = {
+          additional_args = rg_excludes,
         },
       },
     })
@@ -130,6 +137,8 @@ return {
     end, { desc = "Find files (bottom, no preview)" })
     vim.keymap.set("n", "<leader>ff", builtin.find_files, { desc = "Find files" })
     vim.keymap.set("n", "<leader>fg", builtin.live_grep, { desc = "Live grep" })
+    -- normal mode greps the word under the cursor; visual mode greps the selection
+    vim.keymap.set({ "n", "v" }, "<leader>fw", builtin.grep_string, { desc = "Grep word under cursor" })
     vim.keymap.set("n", "<leader>fb", builtin.buffers, { desc = "Buffers" })
     vim.keymap.set("n", "<leader>fh", builtin.help_tags, { desc = "Help tags" })
     vim.keymap.set("n", "<leader>fc", function()
