@@ -181,6 +181,25 @@ local function is_configured(dir)
   return #vim.fn.glob(dir .. "/*.xcodeproj", false, true) > 0 or #vim.fn.glob(dir .. "/*.sln", false, true) > 0
 end
 
+--- Native tool args that make the build report every failure instead of the
+--- first one. Both make and ninja stop scheduling new jobs the moment a
+--- compile fails, so with -Werror a quickfix list would hold only whichever
+--- diagnostics happened to be in flight — build the whole tree, then stop.
+--- Generator-specific and passed after `--`; unknown generators (Xcode, VS)
+--- get nothing rather than a flag their driver would reject.
+local function keep_going_args(dir)
+  if not dir then
+    return {}
+  end
+  if uv.fs_stat(dir .. "/build.ninja") then
+    return { "--", "-k", "0" } -- ninja: 0 means "never stop early"
+  end
+  if uv.fs_stat(dir .. "/Makefile") then
+    return { "--", "-k" }
+  end
+  return {}
+end
+
 local function cmake_build_dir(root)
   local names = vim.g.build_dirs or BUILD_DIRS
   local existing
@@ -426,7 +445,7 @@ local function resolve(opts)
         if opts.clean then
           table.insert(cmd, "--clean-first")
         end
-        steps[#steps + 1] = { cmd = cmd, cwd = root }
+        steps[#steps + 1] = { cmd = cmd, cwd = root, keep_going = dir or (root .. "/build") }
       end
 
       return steps, vim.fs.basename(root), preset
@@ -448,7 +467,7 @@ local function resolve(opts)
       if opts.clean then
         table.insert(cmd, "--clean-first")
       end
-      steps[#steps + 1] = { cmd = cmd, cwd = root }
+      steps[#steps + 1] = { cmd = cmd, cwd = root, keep_going = dir }
     end
 
     return steps, vim.fs.basename(root)
@@ -457,9 +476,10 @@ local function resolve(opts)
   local makefile = find_up({ "Makefile", "makefile", "GNUmakefile" })
   if makefile then
     local root = vim.fs.dirname(makefile)
-    local cmd = { "make", "-j", tostring(jobs()) }
+    -- -k here directly: make is the build tool, so there is no `--` to cross.
+    local cmd = { "make", "-k", "-j", tostring(jobs()) }
     if opts.clean then
-      cmd = { "make", "clean", "all" }
+      cmd = { "make", "-k", "clean", "all" }
     end
     if opts.configure or opts.configure_only then
       return nil, "no CMake project here — nothing to configure"
@@ -567,7 +587,16 @@ local run_steps
 local function run_step(step)
   local opts = { cwd = step.cwd, stdout = line_sink(), stderr = line_sink(), text = true }
 
-  state.job = vim.system(step.cmd, opts, function(res)
+  -- Resolved here rather than in resolve(): on a first build the generator's
+  -- files do not exist yet — the configure step ahead of us in the queue is
+  -- what creates them. Copy, because `state.last` reuses these step tables and
+  -- appending in place would stack the flags on every re-run.
+  local cmd = step.cmd
+  if step.keep_going then
+    cmd = vim.list_extend(vim.list_slice(cmd), keep_going_args(step.keep_going))
+  end
+
+  state.job = vim.system(cmd, opts, function(res)
     vim.schedule(function()
       state.job = nil
 
