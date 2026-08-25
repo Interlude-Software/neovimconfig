@@ -229,6 +229,35 @@ Following is automatic: scrolling back pauses tailing, returning to the last lin
 
 `:Run` with no argument is the picker; `:Run <name>` launches a profile directly and tab-completes. `:Run!` (or `<leader>bP`) records the run with [samply](https://github.com/mstange/samply) (`brew install samply`) and opens the Firefox Profiler UI when the game exits — **quit the game normally** rather than killing it. Signalling samply mid-recording loses the capture, so `<leader>bk` on a profiled run stops the *game* and lets samply finish; a second `<leader>bk` closes samply's profile server. Profile a `RelWithDebInfo`/`Release` build if you care about the numbers.
 
+## Reviewing changes
+
+`<leader>gr` (or `:GitReview`) opens every changed file as a normal buffer with the diff rendered **inline**: changed lines highlighted, removed lines shown as virtual lines where they used to be, and intra-line edits word-diffed. It is the same text you would read in lazygit's diff pane, except it is a real buffer — LSP, `gd`, folds and editing all still work, and `<leader>hs` stages the hunk under the cursor without leaving the file.
+
+Every hunk in the review also goes into the quickfix list, so `]q` / `[q` walks the whole change set across files and `<leader>xq` renders it as a checklist in Trouble. `]h` / `[h` move between hunks inside the current file.
+
+The default base is `HEAD`, not the index — gitsigns' own default hides anything you have already staged, which is precisely what you want to see when reviewing. Pass a ref to review against something else; branches and tags tab-complete:
+
+```vim
+:GitReview            " working tree vs HEAD (staged and unstaged)
+:GitReview main       " everything on this branch, from the merge base with main
+:GitReview HEAD~3
+```
+
+Naming a branch uses the **merge base**, so whatever landed on `main` after you branched stays out of the review.
+
+`<leader>gr` again (or `:GitReviewOff`) turns the decorations off, puts the diff base back to the index, and wipes the buffers it opened — apart from any you edited or still have on screen. `<leader>gR` rebuilds the hunk list against the same base, for after staging or fixing part of what you are reviewing.
+
+| Key | Action |
+|---|---|
+| `<leader>gr` | Start / end an inline diff review |
+| `<leader>gR` | Rebuild the review's hunk list |
+| `]h` / `[h` | Next / previous hunk in this file |
+| `]q` / `[q` | Next / previous hunk in the review |
+| `<leader>hp` | Preview the hunk in a float |
+| `<leader>hs` / `<leader>hr` | Stage / reset the hunk |
+
+For a side-by-side view instead, `:DiffviewOpen` is also installed.
+
 ## Keymaps
 
 Leader: `<Space>`
@@ -253,10 +282,18 @@ Leader: `<Space>`
 | `<leader>rn` | Rename |
 | `<leader>ca` | Code actions |
 
-### Git
+### Git (see [Reviewing changes](#reviewing-changes))
 | Key | Action |
 |---|---|
 | `<leader>gg` | LazyGit |
+| `<leader>gr` | Inline diff review of all changed files |
+| `<leader>gR` | Rebuild the review's hunk list |
+| `]h` / `[h` | Next / previous hunk |
+| `<leader>hp` | Preview hunk |
+| `<leader>hb` | Blame line |
+| `<leader>hs` / `<leader>hS` | Stage hunk / buffer |
+| `<leader>hr` / `<leader>hR` | Reset hunk / buffer |
+| `<leader>hd` | Diff this file (side by side) |
 
 ### Debug (`.cs` / `.c` / `.cpp`)
 | Key | Action |

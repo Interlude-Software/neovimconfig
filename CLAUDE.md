@@ -10,7 +10,7 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
 
 - `init.lua` — sets `<Space>` as leader **before** anything else (keymaps depend on it), bootstraps lazy.nvim, applies core `vim.opt` settings, then `require("lazy").setup("plugins")`.
 - `lua/plugins/*.lua` — lazy.nvim auto-imports every file in this directory. **Each file returns a single plugin spec table** (one plugin per file). Adding a plugin = adding a new file here; no central registry to update.
-- `lua/user/*.lua` — non-plugin modules, wired up by hand from `init.lua` (they cannot live in `lua/plugins/`, which lazy would try to read as specs). Currently just `build.lua`.
+- `lua/user/*.lua` — non-plugin modules, wired up by hand from `init.lua` (they cannot live in `lua/plugins/`, which lazy would try to read as specs): `build.lua`, `run.lua`, `form.lua`, `review.lua`.
 - `lazy-lock.json` — pinned plugin commits (committed; this is the lockfile).
 - `lazygit/config.yml` — source of truth for the lazygit config, symlinked into place per the README (not auto-loaded by Neovim).
 
@@ -40,6 +40,16 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
   - The option schema lives in the same `.nvim-run.json` under `options` and is maintained by hand; nothing can interrogate a binary for its real flags. `save_profiles` must round-trip `options`, or saving a profile silently deletes the definitions the form is generated from. Profile `args` stay a plain list so hand-editing works: opening a profile parses the list back against the schema and keeps anything unrecognised in an "Extra args" field instead of dropping it.
   - `M.scan_flags` (`:RunScanFlags`, `<leader>bf`) greps quoted `--flag` literals via ripgrep and diffs them against the schema, reporting missing flags into the quickfix list and schema-only flags as stale. Types are inferred from the matched line (`argv[++i]`/`i + 1 < argc` → value, `atoi`/`stoi`/`strtoul` → int, otherwise switch); `guess_type`/`describe` share that logic so the report text and the written type cannot disagree. It is a grep, not a parser.
 - **Debugging**: `codelldb` (Mason) adapter in `dap.lua`. `build_configs()` adds "Launch C/C++ executable" and "Attach to process (C/C++)" entries, surfaced first when the current buffer's filetype is `c`/`cpp` and appended otherwise. Install via Mason: `:MasonInstall codelldb`.
+
+### Git review (`lua/user/review.lua`)
+
+`<leader>gr` / `:GitReview [rev]` turns the working tree into an inline-diff review: all changed files become listed buffers with gitsigns' `linehl`, `word_diff` and `show_deleted` forced on, and every hunk goes into the quickfix list. Three things are load-bearing:
+
+- **The base is `HEAD`, not the index.** gitsigns defaults to the index, which hides staged work — the one thing a review must show. With a ref argument the base is `git merge-base <rev> HEAD`, so commits that landed on the base branch after you forked stay out.
+- **The file list and the hunk list both come from `gitsigns.setqflist("all")`**, which computes hunks from git for the whole repo honouring `config.base`, and creates a buffer per file to resolve its filenames — so "open all changed files" is just flipping `buflisted` on the buffers it already made. Nothing here shells out to `git diff`. Its `"all"` target unions every repo of every attached buffer plus the cwd, so entries outside the repo under review are filtered out afterwards and the list re-set.
+- **`change_base` and `setqflist` are async and must be chained**, not called in sequence — the hunk list has to be built after the new base lands in the config. `toggle_linehl`/`toggle_word_diff`/`toggle_deleted` only flip config values, so `refresh()` is needed for already-open buffers to re-render.
+
+`close()` deletes only the buffers it created that are unmodified and not displayed; unlisting the buffer the user is looking at would drop it out of bufferline while it sits there in the window.
 
 ### treesitter note
 

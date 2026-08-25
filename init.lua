@@ -58,6 +58,7 @@ require("lazy").setup("plugins")
 -- lives outside lua/plugins/ and is wired up by hand.
 require("user.build").setup()
 require("user.run").setup()
+require("user.review").setup()
 
 vim.keymap.set("n", "]w", function()
   vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN })
