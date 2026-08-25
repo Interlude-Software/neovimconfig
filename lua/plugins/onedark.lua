@@ -5,7 +5,7 @@ return {
   config = function()
     require("onedark").setup({
       -- dark | darker | cool | deep | warm | warmer | light
-      style = "dark",
+      style = "deep",
     })
     -- load() rather than :colorscheme, which would bypass the style above
     require("onedark").load()

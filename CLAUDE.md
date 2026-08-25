@@ -10,7 +10,7 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
 
 - `init.lua` — sets `<Space>` as leader **before** anything else (keymaps depend on it), bootstraps lazy.nvim, applies core `vim.opt` settings, then `require("lazy").setup("plugins")`.
 - `lua/plugins/*.lua` — lazy.nvim auto-imports every file in this directory. **Each file returns a single plugin spec table** (one plugin per file). Adding a plugin = adding a new file here; no central registry to update.
-- `lua/user/*.lua` — non-plugin modules, wired up by hand from `init.lua` (they cannot live in `lua/plugins/`, which lazy would try to read as specs): `build.lua`, `run.lua`, `form.lua`, `review.lua`.
+- `lua/user/*.lua` — non-plugin modules, wired up by hand from `init.lua` (they cannot live in `lua/plugins/`, which lazy would try to read as specs): `build.lua`, `run.lua`, `form.lua`, `review.lua`, `colorpreview.lua`.
 - `lazy-lock.json` — pinned plugin commits (committed; this is the lockfile).
 - `lazygit/config.yml` — source of truth for the lazygit config, symlinked into place per the README (not auto-loaded by Neovim).
 
@@ -50,6 +50,13 @@ A personal Neovim configuration centered on **Unity / C# development**. There is
 - **`change_base` and `setqflist` are async and must be chained**, not called in sequence — the hunk list has to be built after the new base lands in the config. `toggle_linehl`/`toggle_word_diff`/`toggle_deleted` only flip config values, so `refresh()` is needed for already-open buffers to re-render.
 
 `close()` deletes only the buffers it created that are unmodified and not displayed; unlisting the buffer the user is looking at would drop it out of bufferline while it sits there in the window.
+
+### Colorscheme preview (`lua/user/colorpreview.lua`)
+
+A `CmdlineChanged` autocmd applies the scheme named on the command line as you type or tab through `:colorscheme` completions, and a `CmdlineLeave` autocmd puts the old one back when the command is aborted. Two details are load-bearing:
+
+- **The name is checked against `getcompletion(name, "color")` before being applied**, so a half-typed name doesn't throw on every keystroke.
+- **`'background'` is saved and restored along with the scheme name, and put back *before* the scheme is re-applied.** `:colorscheme` never resets `'background'`, so previewing a light scheme (`delek`, `morning`, …) leaves `background=light` behind. Schemes that branch on it then load their light variant on restore — and onedark writes that choice back into `vim.g.onedark_config` via `set_options`, so it stays light for the rest of the session even once the option is corrected. Restoring the name alone is not enough.
 
 ### treesitter note
 

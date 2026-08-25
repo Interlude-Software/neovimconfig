@@ -59,6 +59,7 @@ require("lazy").setup("plugins")
 require("user.build").setup()
 require("user.run").setup()
 require("user.review").setup()
+require("user.colorpreview").setup()
 
 vim.keymap.set("n", "]w", function()
   vim.diagnostic.goto_next({ severity = vim.diagnostic.severity.WARN })
